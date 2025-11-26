@@ -1,3 +1,4 @@
+// app/(chat)/chat/[id]/page.tsx
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
