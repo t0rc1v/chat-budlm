@@ -136,7 +136,7 @@ function PureArtifact({
       }
 
       mutate<Document[]>(
-        `/api/document?id=${artifact.documentId}`,
+        `/api/document?id=${artifact.documentId}?chatId=${chatId}`,
         async (currentDocuments) => {
           if (!currentDocuments) {
             return [];
@@ -150,7 +150,7 @@ function PureArtifact({
           }
 
           if (currentDocument.content !== updatedContent) {
-            await fetch(`/api/document?id=${artifact.documentId}`, {
+            await fetch(`/api/document?id=${artifact.documentId}?chatId=${chatId}`, {
               method: "POST",
               body: JSON.stringify({
                 title: artifact.title,

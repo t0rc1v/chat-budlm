@@ -42,11 +42,19 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
+  const chatId = searchParams.get("chatId");
 
   if (!id) {
     return new ChatSDKError(
       "bad_request:api",
       "Parameter id is required."
+    ).toResponse();
+  }
+
+  if (!chatId) {
+    return new ChatSDKError(
+      "bad_request:api",
+      "Parameter chatId is required."
     ).toResponse();
   }
 
@@ -79,6 +87,7 @@ export async function POST(request: Request) {
     title,
     kind,
     userId: userId,
+    chatId: chatId
   });
 
   return Response.json(document, { status: 200 });

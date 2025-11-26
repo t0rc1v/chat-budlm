@@ -69,6 +69,7 @@ export async function deleteChatById({ id }: { id: string }) {
     await db.delete(vote).where(eq(vote.chatId, id))
     await db.delete(message).where(eq(message.chatId, id));
     await db.delete(stream).where(eq(stream.chatId, id));
+    await db.delete(document).where(eq(document.chatId, id))
 
     const [chatsDeleted] = await db
       .delete(chat)
@@ -99,6 +100,7 @@ export async function deleteAllChatsByUserId({ userId }: { userId: string }) {
     await db.delete(vote).where(inArray(vote.chatId, chatIds));
     await db.delete(message).where(inArray(message.chatId, chatIds));
     await db.delete(stream).where(inArray(stream.chatId, chatIds));
+    await db.delete(document).where(inArray(document.chatId, chatIds))
 
     const deletedChats = await db
       .delete(chat)
@@ -274,12 +276,14 @@ export async function saveDocument({
   kind,
   content,
   userId,
+  chatId,
 }: {
   id: string;
   title: string;
   kind: ArtifactKind;
   content: string;
   userId: string;
+  chatId: string;
 }) {
   try {
     return await db
@@ -290,6 +294,7 @@ export async function saveDocument({
         kind,
         content,
         userId,
+        chatId,
         createdAt: new Date(),
       })
       .returning();

@@ -14,6 +14,7 @@ export type SaveDocumentProps = {
   kind: ArtifactKind;
   content: string;
   userId: string;
+  chatId: string;
 };
 
 export type CreateDocumentCallbackProps = {
@@ -21,6 +22,7 @@ export type CreateDocumentCallbackProps = {
   title: string;
   dataStream: UIMessageStreamWriter<ChatMessage>;
   userId: string;
+  chatId: string;
 };
 
 export type UpdateDocumentCallbackProps = {
@@ -28,6 +30,7 @@ export type UpdateDocumentCallbackProps = {
   description: string;
   dataStream: UIMessageStreamWriter<ChatMessage>;
   userId: string;
+  chatId: string;
 };
 
 export type DocumentHandler<T = ArtifactKind> = {
@@ -49,6 +52,7 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
         title: args.title,
         dataStream: args.dataStream,
         userId: args.userId,
+        chatId: args.chatId,
       });
 
       if (args.userId) {
@@ -58,6 +62,7 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
           content: draftContent,
           kind: config.kind,
           userId: args.userId,
+          chatId: args.chatId,
         });
       }
 
@@ -69,6 +74,7 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
         description: args.description,
         dataStream: args.dataStream,
         userId: args.userId,
+        chatId: args.chatId,
       });
 
       if (args.userId) {
@@ -78,6 +84,7 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
           content: draftContent,
           kind: config.kind,
           userId: args.userId,
+          chatId: args.chatId,
         });
       }
 

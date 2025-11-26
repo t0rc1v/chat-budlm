@@ -62,7 +62,7 @@ export const document = pgTable(
   {
     id: uuid("id").notNull().defaultRandom(),
     userId: varchar("user_id", { length: 255 }).notNull(),
-    // chatId: uuid("chat_id").notNull().references(() => chat.id),
+    chatId: uuid("chat_id").notNull().references(() => chat.id),
     createdAt: timestamp("created_at").notNull(),
     title: text("title").notNull(),
     content: text("content"),

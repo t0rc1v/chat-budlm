@@ -197,8 +197,8 @@ export async function POST(request: Request) {
           experimental_transform: smoothStream({ chunking: "word" }),
           tools: {
             getWeather,
-            createDocument: createDocument({ userId, dataStream }),
-            updateDocument: updateDocument({ userId, dataStream }),
+            createDocument: createDocument({ userId, dataStream, chatId: id }),
+            updateDocument: updateDocument({ userId, dataStream, chatId: id }),
             requestSuggestions: requestSuggestions({
               userId,
               dataStream,

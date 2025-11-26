@@ -52,9 +52,11 @@ function PureChatHeader({
         />
       )}
 
-      <div className="order-3 md:ml-auto md:flex md:h-fit px-2">  
-        <SignedIn><UserButton /></SignedIn>
-      </div>
+      <SignedIn>
+        <div className="order-3 md:ml-auto md:flex md:h-fit px-2">  
+          <UserButton />
+        </div>
+      </SignedIn>
     </header>
   );
 }

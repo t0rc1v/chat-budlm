@@ -10,9 +10,10 @@ import { generateUUID } from "@/lib/utils";
 type CreateDocumentProps = {
   userId: string;
   dataStream: UIMessageStreamWriter<ChatMessage>;
+  chatId: string;
 };
 
-export const createDocument = ({ userId, dataStream }: CreateDocumentProps) =>
+export const createDocument = ({ userId, dataStream, chatId }: CreateDocumentProps) =>
   tool({
     description:
       "Create a document for a writing or content creation activities. This tool will call other functions that will generate the contents of the document based on the title and kind.",
@@ -61,6 +62,7 @@ export const createDocument = ({ userId, dataStream }: CreateDocumentProps) =>
         title,
         dataStream,
         userId,
+        chatId
       });
 
       dataStream.write({ type: "data-finish", data: null, transient: true });
