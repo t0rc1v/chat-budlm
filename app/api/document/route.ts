@@ -51,13 +51,6 @@ export async function POST(request: Request) {
     ).toResponse();
   }
 
-  if (!chatId) {
-    return new ChatSDKError(
-      "bad_request:api",
-      "Parameter chatId is required."
-    ).toResponse();
-  }
-
   const {userId} = await auth();
 
   if (!userId) {

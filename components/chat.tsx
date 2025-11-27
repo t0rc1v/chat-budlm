@@ -19,7 +19,7 @@ import {
 import { useArtifactSelector } from "@/hooks/use-artifact";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatVisibility } from "@/hooks/use-chat-visibility";
-import type { Vote } from "@/lib/db/schema";
+import type { Source, Vote } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
 import type { Attachment, ChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { ChatHeader } from "./chat-header";
 import { Messages } from "./messages";
 import { Artifact } from "./artifact";
+import { SourcesModal } from "./sources-modal";
 
 export function Chat({
   id,
@@ -41,6 +42,9 @@ export function Chat({
   isReadonly,
   autoResume,
   initialLastContext,
+  projectId,
+  chatSources,
+  projectSources,
 }: {
   id: string;
   initialMessages: ChatMessage[];
@@ -49,6 +53,9 @@ export function Chat({
   isReadonly: boolean;
   autoResume: boolean;
   initialLastContext?: AppUsage;
+  projectId?: string;
+  chatSources?: string[];
+  projectSources?: Source[];
 }) {
   const { visibilityType } = useChatVisibility({
     chatId: id,
@@ -62,6 +69,11 @@ export function Chat({
   const [usage, setUsage] = useState<AppUsage | undefined>(initialLastContext);
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
+  const [selectedSources, setSelectedSources] = useState<string[]>(
+    chatSources || []
+  );
+  const [showSourcesModal, setShowSourcesModal] = useState(false);
+
   const currentModelIdRef = useRef(currentModelId);
 
   useEffect(() => {
@@ -158,6 +170,9 @@ export function Chat({
           chatId={id}
           isReadonly={isReadonly}
           selectedVisibilityType={initialVisibilityType}
+          projectId={projectId}
+          onShowSources={() => setShowSourcesModal(true)}
+          selectedSourcesCount={selectedSources.length}
         />
 
         <Messages
@@ -193,6 +208,19 @@ export function Chat({
           )}
         </div>
       </div>
+
+      {projectId && projectSources && (
+        <SourcesModal
+          open={showSourcesModal}
+          onOpenChange={setShowSourcesModal}
+          projectId={projectId}
+          sources={projectSources}
+          selectedSources={selectedSources}
+          onSourcesChange={setSelectedSources}
+          isOwner={!isReadonly}
+          chatId={id}
+        />
+      )}
 
       <Artifact
         attachments={attachments}

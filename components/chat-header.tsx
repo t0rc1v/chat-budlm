@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { VisibilitySelector, VisibilityType } from "./visibility-selector";
 import { useSidebar } from "./ui/sidebar";
 import { SidebarToggle } from "./sidebar-toggle";
-import { PlusIcon, VercelIcon } from "./icons";
+import { FileIcon, PlusIcon, VercelIcon } from "./icons";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 import { LogIn } from "lucide-react";
 
@@ -16,10 +16,16 @@ function PureChatHeader({
   chatId,
   selectedVisibilityType,
   isReadonly,
+  projectId,
+  onShowSources,
+  selectedSourcesCount,
 }: {
   chatId: string;
   selectedVisibilityType: VisibilityType;
   isReadonly: boolean;
+  projectId?: string;
+  onShowSources?: () => void;
+  selectedSourcesCount?: number;
 }) {
   const router = useRouter();
   const { open } = useSidebar();
@@ -34,17 +40,36 @@ function PureChatHeader({
         <Button
           className="order-2 ml-auto h-8 px-2 md:order-1 md:ml-0 md:h-fit md:px-2"
           onClick={() => {
-            router.push("/");
+            if (projectId) {
+              router.push(`/project/${projectId}`);
+            } else {
+              router.push("/");
+            }
             router.refresh();
           }}
           variant="outline"
         >
           <PlusIcon />
-          <span className="md:sr-only">New Chat</span>
+          {/* <span className="md:sr-only">New Chat</span> */}
         </Button>
       )}
 
-      {!isReadonly && (
+      {/* Sources button for project chats */}
+      {projectId && onShowSources && !isReadonly && (
+        <Button
+          className="order-2 h-8 px-2 md:h-fit md:px-2"
+          onClick={onShowSources}
+          variant="outline"
+        >
+          <FileIcon size={16} />
+          <span className="hidden md:inline">Sources</span>
+          {selectedSourcesCount && selectedSourcesCount > 0 ? (
+            <span className="ml-1 text-xs">({selectedSourcesCount})</span>
+          ) : null}
+        </Button>
+      )}
+
+      {!isReadonly && !projectId && (
         <VisibilitySelector
           chatId={chatId}
           className="order-1 md:order-2"
@@ -52,11 +77,11 @@ function PureChatHeader({
         />
       )}
 
-      <SignedIn>
-        <div className="order-3 md:ml-auto md:flex md:h-fit px-2">  
+      <div className="order-3 md:ml-auto md:flex md:h-fit px-2">
+        <SignedIn>
           <UserButton />
-        </div>
-      </SignedIn>
+        </SignedIn>
+      </div>
     </header>
   );
 }
@@ -65,6 +90,8 @@ export const ChatHeader = memo(PureChatHeader, (prevProps, nextProps) => {
   return (
     prevProps.chatId === nextProps.chatId &&
     prevProps.selectedVisibilityType === nextProps.selectedVisibilityType &&
-    prevProps.isReadonly === nextProps.isReadonly
+    prevProps.isReadonly === nextProps.isReadonly &&
+    prevProps.projectId === nextProps.projectId &&
+    prevProps.selectedSourcesCount === nextProps.selectedSourcesCount
   );
 });

@@ -7,7 +7,7 @@ import type { ChatMessage } from "@/lib/types";
 type UpdateDocumentProps = {
   userId: string;
   dataStream: UIMessageStreamWriter<ChatMessage>;
-  chatId: string;
+  chatId: string | null;
 };
 
 export const updateDocument = ({ userId, dataStream, chatId }: UpdateDocumentProps) =>

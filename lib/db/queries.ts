@@ -9,6 +9,7 @@ import {
   gt,
   gte,
   inArray,
+  isNull,
   lt,
   type SQL,
 } from "drizzle-orm";
@@ -45,11 +46,13 @@ export async function saveChat({
   userId,
   title,
   visibility,
+  projectId,
 }: {
   id: string;
   userId: string;
   title: string;
   visibility: VisibilityType;
+  projectId?: string | null;
 }) {
   try {
     return await db.insert(chat).values({
@@ -58,6 +61,8 @@ export async function saveChat({
       userId,
       title,
       visibility,
+      projectId: projectId || null,
+      sources: [],
     });
   } catch (_error) {
     throw new ChatSDKError("bad_request:database", "Failed to save chat");
@@ -136,8 +141,12 @@ export async function getChatsByUserId({
         .from(chat)
         .where(
           whereCondition
-            ? and(whereCondition, eq(chat.userId, id))
-            : eq(chat.userId, id)
+            ? and(
+                whereCondition,
+                eq(chat.userId, id),
+                isNull(chat.projectId) // Only get non-project chats
+              )
+            : and(eq(chat.userId, id), isNull(chat.projectId))
         )
         .orderBy(desc(chat.createdAt))
         .limit(extendedLimit);
@@ -283,7 +292,7 @@ export async function saveDocument({
   kind: ArtifactKind;
   content: string;
   userId: string;
-  chatId: string;
+  chatId: string | null;
 }) {
   try {
     return await db

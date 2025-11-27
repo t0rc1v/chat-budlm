@@ -102,11 +102,13 @@ export async function POST(request: Request) {
       message,
       selectedChatModel,
       selectedVisibilityType,
+      projectId,
     }: {
       id: string;
       message: ChatMessage;
       selectedChatModel: ChatModel["id"];
       selectedVisibilityType: VisibilityType;
+      projectId?: string;
     } = requestBody;
 
     const {userId} = await auth();
@@ -145,6 +147,7 @@ export async function POST(request: Request) {
         userId: userId,
         title,
         visibility: selectedVisibilityType,
+        projectId: projectId || null,
       });
       // New chat - no need to fetch messages, it's empty
     }

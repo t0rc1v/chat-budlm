@@ -10,7 +10,7 @@ import { generateUUID } from "@/lib/utils";
 type CreateDocumentProps = {
   userId: string;
   dataStream: UIMessageStreamWriter<ChatMessage>;
-  chatId: string;
+  chatId: string | null;
 };
 
 export const createDocument = ({ userId, dataStream, chatId }: CreateDocumentProps) =>

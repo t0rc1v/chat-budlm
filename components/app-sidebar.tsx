@@ -1,3 +1,4 @@
+// components/app-sidebar.tsx
 "use client";
 
 import Link from "next/link";
@@ -29,14 +30,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
-import { } from "@clerk/nextjs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { SidebarProjects } from "./sidebar-projects";
+import { CreateProjectModal } from "./create-project-modal";
+import { FolderIcon } from "lucide-react";
 
 interface AppSidebarProps {
   user: {
     id: string;
     firstName: string | null;
     lastName: string | null;
-    email?: string,
+    email?: string;
     imageUrl: string;
   } | null;
 }
@@ -46,22 +50,37 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const { setOpenMobile } = useSidebar();
   const { mutate } = useSWRConfig();
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<"projects" | "chats">("projects");
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
 
   const handleDeleteAll = () => {
-    const deletePromise = fetch("/api/history", {
+    const endpoint = activeTab === "chats" ? "/api/history" : "/api/project/delete-all";
+    
+    const deletePromise = fetch(endpoint, {
       method: "DELETE",
     });
 
     toast.promise(deletePromise, {
-      loading: "Deleting all chats...",
+      loading: `Deleting all ${activeTab}...`,
       success: () => {
         mutate(unstable_serialize(getChatHistoryPaginationKey));
+        mutate("/api/project"); // Refresh projects list
         router.push("/");
         setShowDeleteAllDialog(false);
-        return "All chats deleted successfully";
+        return `All ${activeTab} deleted successfully`;
       },
-      error: "Failed to delete all chats",
+      error: `Failed to delete all ${activeTab}`,
     });
+  };
+
+  const handleNewChat = () => {
+    setOpenMobile(false);
+    router.push("/");
+    router.refresh();
+  };
+
+  const handleNewProject = () => {
+    setShowCreateProjectModal(true);
   };
 
   return (
@@ -73,9 +92,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
               <Link
                 className="flex flex-row items-center gap-3"
                 href="/"
-                onClick={() => {
-                  setOpenMobile(false);
-                }}
+                onClick={() => setOpenMobile(false)}
               >
                 <span className="cursor-pointer rounded-md px-2 font-semibold text-lg hover:bg-muted">
                   Chatbot
@@ -95,7 +112,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent align="end" className="hidden md:block">
-                      Delete All Chats
+                      Delete All {activeTab === "projects" ? "Projects" : "Chats"}
                     </TooltipContent>
                   </Tooltip>
                 )}
@@ -103,11 +120,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
                   <TooltipTrigger asChild>
                     <Button
                       className="h-8 p-1 md:h-fit md:p-2"
-                      onClick={() => {
-                        setOpenMobile(false);
-                        router.push("/");
-                        router.refresh();
-                      }}
+                      onClick={activeTab === "projects" ? handleNewProject : handleNewChat}
                       type="button"
                       variant="ghost"
                     >
@@ -115,16 +128,34 @@ export function AppSidebar({ user }: AppSidebarProps) {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent align="end" className="hidden md:block">
-                    New Chat
+                    New {activeTab === "projects" ? "Project" : "Chat"}
                   </TooltipContent>
                 </Tooltip>
               </div>
             </div>
           </SidebarMenu>
         </SidebarHeader>
+
         <SidebarContent>
-          <SidebarHistory userId={user?.id} />
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "projects" | "chats")} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="projects" className="flex items-center gap-2">
+                <FolderIcon size={14} />
+                <span>Projects</span>
+              </TabsTrigger>
+              <TabsTrigger value="chats">Chats</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="projects" className="mt-0">
+              <SidebarProjects userId={user?.id} />
+            </TabsContent>
+            
+            <TabsContent value="chats" className="mt-0">
+              <SidebarHistory userId={user?.id} />
+            </TabsContent>
+          </Tabs>
         </SidebarContent>
+
         <SidebarFooter>
           <SidebarUserNav user={user} />
         </SidebarFooter>
@@ -133,10 +164,12 @@ export function AppSidebar({ user }: AppSidebarProps) {
       <AlertDialog onOpenChange={setShowDeleteAllDialog} open={showDeleteAllDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete all chats?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Delete all {activeTab}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete all your
-              chats and remove them from our servers.
+              {" "}{activeTab} and remove them from our servers.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -147,6 +180,11 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CreateProjectModal
+        open={showCreateProjectModal}
+        onOpenChange={setShowCreateProjectModal}
+      />
     </>
   );
 }

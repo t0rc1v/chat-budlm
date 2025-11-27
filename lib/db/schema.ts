@@ -14,14 +14,43 @@ import {
 import type { AppUsage } from "../usage";
 
 
-export const documentKindEnum = pgEnum("document_kind", ["text", "code", "image", "sheet"])
+export const sourceTypeEnum = pgEnum("source_types", ["file", "website", "youtube"])
+export const documentKindEnum = pgEnum("document_kind", ["text", "code", "image", "sheet", "quiz", "flashcard", "report", "slides"])
 
+
+export const project = pgTable("project", {
+  id: uuid("id").primaryKey().notNull().defaultRandom(),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  title: text("title").notNull(),
+  visibility: varchar("visibility", { enum: ["public", "private"] })
+    .notNull()
+    .default("private"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Sources table
+export const source = pgTable("source", {
+  id: uuid("id").primaryKey().notNull().defaultRandom(),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => project.id, { onDelete: "cascade" }),
+  sourceType: sourceTypeEnum().notNull(),
+  mediaType: text("media_type").notNull(),
+  filename: text("filename").notNull(),
+  fileKey: text("file_key"),
+  url: text("url").notNull(),
+  chromaCollectionName: text("chroma_collection_name").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 export const chat = pgTable("chat", {
   id: uuid("id").primaryKey().notNull().defaultRandom(),
   createdAt: timestamp("created_at").notNull(),
   title: text("title").notNull(),
   userId: varchar("user_id", { length: 255 }).notNull(),
+  projectId: uuid("project_id").references(() => project.id, { onDelete: "cascade" }),
+  sources: jsonb("sources").$type<string[]>().default([]),
   visibility: varchar("visibility", { enum: ["public", "private"] })
     .notNull()
     .default("private"),
@@ -62,13 +91,14 @@ export const document = pgTable(
   {
     id: uuid("id").notNull().defaultRandom(),
     userId: varchar("user_id", { length: 255 }).notNull(),
-    chatId: uuid("chat_id").notNull().references(() => chat.id),
-    createdAt: timestamp("created_at").notNull(),
+    chatId: uuid("chat_id").references(() => chat.id),
+    projectId: uuid("project_id").references(() => project.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     content: text("content"),
     kind: documentKindEnum()
-      .notNull()
-      .default("text"),
+    .notNull()
+    .default("text"),
+    createdAt: timestamp("created_at").notNull(),
   },
   (table) => {
     return {
@@ -116,6 +146,8 @@ export const stream = pgTable(
 );
 
 
+export type Project = typeof project.$inferSelect;
+export type Source = typeof source.$inferSelect;
 export type Chat = typeof chat.$inferSelect;
 export type DBMessage = typeof message.$inferSelect;
 export type Vote = typeof vote.$inferSelect;
