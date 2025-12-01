@@ -3,6 +3,10 @@ import type { UIMessageStreamWriter } from "ai";
 import { codeDocumentHandler } from "@/artifacts/code/server";
 import { sheetDocumentHandler } from "@/artifacts/sheet/server";
 import { textDocumentHandler } from "@/artifacts/text/server";
+import { quizDocumentHandler } from "@/artifacts/quiz/server";
+import { flashcardDocumentHandler } from "@/artifacts/flashcard/server";
+import { reportDocumentHandler } from "@/artifacts/report/server";
+import { slidesDocumentHandler } from "@/artifacts/slides/server";
 import type { ArtifactKind } from "@/components/artifact";
 import { saveDocument } from "../db/queries";
 import type { Document } from "../db/schema";
@@ -93,6 +97,18 @@ export const documentHandlersByArtifactKind: DocumentHandler[] = [
   textDocumentHandler,
   codeDocumentHandler,
   sheetDocumentHandler,
+  quizDocumentHandler,
+  flashcardDocumentHandler,
+  reportDocumentHandler,
+  slidesDocumentHandler,
 ];
 
-export const artifactKinds = ["text", "code", "sheet"] as const;
+export const artifactKinds = [
+  "text",
+  "code",
+  "sheet",
+  "quiz",
+  "flashcard",
+  "report",
+  "slides",
+] as const;

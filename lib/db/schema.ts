@@ -14,7 +14,7 @@ import {
 import type { AppUsage } from "../usage";
 
 
-export const documentKindEnum = pgEnum("document_kind", ["text", "code", "image", "sheet"])
+export const documentKindEnum = pgEnum("document_kind", ["text", "code", "image", "sheet", "quiz", "flashcard", "report", "slides"])
 
 
 export const chat = pgTable("chat", {
