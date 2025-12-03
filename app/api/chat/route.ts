@@ -1,3 +1,4 @@
+// update chat route
 import { geolocation } from "@vercel/functions";
 import {
   convertToModelMessages,
@@ -45,6 +46,10 @@ import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import { auth } from "@clerk/nextjs/server";
 import { UserType } from "@/types";
 import { generateTitleFromUserMessage } from "@/app/(chat)/actions";
+import { queryDocuments } from "@/lib/services/chroma";
+import { deleteChatFileSelections, getProjectById, getProjectFiles } from "@/lib/db/project-queries";
+import { getSelectedFileIds } from "@/lib/db/file-queries";
+
 
 export const maxDuration = 60;
 
@@ -102,12 +107,18 @@ export async function POST(request: Request) {
       message,
       selectedChatModel,
       selectedVisibilityType,
+      projectId,
+      selectedFileIds,
     }: {
       id: string;
       message: ChatMessage;
       selectedChatModel: ChatModel["id"];
       selectedVisibilityType: VisibilityType;
+      projectId?: string;
+      selectedFileIds?: string[];
     } = requestBody;
+
+    console.log("selectedFileIds", selectedFileIds)
 
     const {userId} = await auth();
 
@@ -145,6 +156,7 @@ export async function POST(request: Request) {
         userId: userId,
         title,
         visibility: selectedVisibilityType,
+        projectId: projectId || null,
       });
       // New chat - no need to fetch messages, it's empty
     }
@@ -159,6 +171,60 @@ export async function POST(request: Request) {
       city,
       country,
     };
+
+    // RAG: Get context from selected files if in project
+    let ragContext = "";
+    let fileIdsToQuery: string[] = [];
+
+    // Get chat data to check for projectId
+    const chatData = await getChatById({ id });
+
+    if (chatData) {
+      // Get selected file IDs from database
+      fileIdsToQuery = await getSelectedFileIds({ chatId: id });
+    } else if (selectedFileIds && selectedFileIds.length > 0) {
+      // New chat in project - use provided selectedFileIds
+      fileIdsToQuery = selectedFileIds;
+    }
+
+    console.log("fileIdsToQuery", fileIdsToQuery)
+
+    // Query documents if we have files selected
+    if (fileIdsToQuery.length > 0) {
+      try {
+        // Extract user query from message
+        const userQuery = message.parts
+          .filter(part => part.type === "text")
+          .map(part => part.text)
+          .join(" ");
+
+        // Determine collection ID (projectId if in project, otherwise chatId)
+        const collectionId = chatData?.projectId || projectId || id;
+
+        // Query relevant documents
+        const { documents, metadatas } = await queryDocuments({
+          projectId: collectionId,
+          query: userQuery,
+          fileIds: fileIdsToQuery,
+          nResults: 5,
+        });
+
+        if (documents.length > 0) {
+          ragContext = `\n\nRelevant context from uploaded documents:\n${documents
+            .map((doc, i) => {
+              const meta = metadatas[i];
+              return `[${meta?.fileName || 'Document'}]: ${doc}`;
+            })
+            .join('\n\n')}`;
+        }
+      } catch (error) {
+        console.error("Error retrieving RAG context:", error);
+        // Continue without RAG context if there's an error
+      }
+    }
+
+    console.log("ragContext", ragContext.slice(0, 100))
+
 
     await saveMessages({
       messages: [
@@ -182,7 +248,7 @@ export async function POST(request: Request) {
       execute: ({ writer: dataStream }) => {
         const result = streamText({
           model: myProvider.languageModel(selectedChatModel),
-          system: systemPrompt({ selectedChatModel, requestHints }),
+          system: systemPrompt({ selectedChatModel, requestHints }) + ragContext,
           messages: convertToModelMessages(uiMessages),
           stopWhen: stepCountIs(5),
           experimental_activeTools:

@@ -15,7 +15,7 @@ const filePartSchema = z.object({
 const partSchema = z.union([textPartSchema, filePartSchema]);
 
 export const postRequestBodySchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   message: z.object({
     id: z.string().uuid(),
     role: z.enum(["user"]),
@@ -23,6 +23,8 @@ export const postRequestBodySchema = z.object({
   }),
   selectedChatModel: z.enum(["chat-model", "chat-model-reasoning"]),
   selectedVisibilityType: z.enum(["public", "private"]),
+  projectId: z.uuid().optional(),
+  selectedFileIds: z.array(z.uuid()).optional(),
 });
 
 export type PostRequestBody = z.infer<typeof postRequestBodySchema>;

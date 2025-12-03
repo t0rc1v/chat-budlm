@@ -1,3 +1,4 @@
+// components/app-sidebar.tsx (updated)
 "use client";
 
 import Link from "next/link";
@@ -6,6 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
+import { Folder } from "lucide-react";
 import { PlusIcon, TrashIcon } from "@/components/icons";
 import { SidebarHistory, getChatHistoryPaginationKey } from "@/components/sidebar-history";
 import { SidebarUserNav } from "@/components/sidebar-user-nav";
@@ -16,6 +18,8 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -29,14 +33,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
-import { } from "@clerk/nextjs"
 
 interface AppSidebarProps {
   user: {
     id: string;
     firstName: string | null;
     lastName: string | null;
-    email?: string,
+    email?: string;
     imageUrl: string;
   } | null;
 }
@@ -121,6 +124,23 @@ export function AppSidebar({ user }: AppSidebarProps) {
               </div>
             </div>
           </SidebarMenu>
+
+          {user && (
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <Link
+                    href="/projects"
+                    onClick={() => setOpenMobile(false)}
+                    className="flex items-center gap-2"
+                  >
+                    <Folder className="h-4 w-4" />
+                    <span>Projects</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          )}
         </SidebarHeader>
         <SidebarContent>
           <SidebarHistory userId={user?.id} />

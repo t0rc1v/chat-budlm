@@ -26,6 +26,7 @@ import {
   stream,
   suggestion,
   vote,
+  fileSelection,
 } from "./schema";
 import { db } from ".";
 
@@ -45,11 +46,13 @@ export async function saveChat({
   userId,
   title,
   visibility,
+  projectId,
 }: {
   id: string;
   userId: string;
   title: string;
   visibility: VisibilityType;
+  projectId?: string | null;
 }) {
   try {
     return await db.insert(chat).values({
@@ -58,6 +61,7 @@ export async function saveChat({
       userId,
       title,
       visibility,
+      projectId: projectId || null,
     });
   } catch (_error) {
     throw new ChatSDKError("bad_request:database", "Failed to save chat");
@@ -69,6 +73,7 @@ export async function deleteChatById({ id }: { id: string }) {
     await db.delete(vote).where(eq(vote.chatId, id))
     await db.delete(message).where(eq(message.chatId, id));
     await db.delete(stream).where(eq(stream.chatId, id));
+    await db.delete(fileSelection).where(eq(fileSelection.chatId, id));
 
     const [chatsDeleted] = await db
       .delete(chat)

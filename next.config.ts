@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  serverExternalPackages: ['pdf-parse', 'chromadb'],
 };
 
 export default nextConfig;

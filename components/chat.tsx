@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { ChatHeader } from "./chat-header";
 import { Messages } from "./messages";
 import { Artifact } from "./artifact";
+import { useSourceStore } from "@/lib/stores/use-source-store";
 
 export function Chat({
   id,
@@ -41,6 +42,7 @@ export function Chat({
   isReadonly,
   autoResume,
   initialLastContext,
+  projectId,
 }: {
   id: string;
   initialMessages: ChatMessage[];
@@ -49,14 +51,29 @@ export function Chat({
   isReadonly: boolean;
   autoResume: boolean;
   initialLastContext?: AppUsage;
+  projectId?: string | null;
 }) {
   const { visibilityType } = useChatVisibility({
     chatId: id,
     initialVisibilityType,
   });
 
+  const {selectedFileIds, reset: resetSourceStore} = useSourceStore()
+
   const { mutate } = useSWRConfig();
   const { setDataStream } = useDataStream();
+
+  // Fetch chat status from API
+  const { data: chatStatus } = useSWR<{ isNewChat: boolean; chatExists: boolean }>(
+    `/api/chat/status?chatId=${id}`,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    }
+  );
+
+  const isNewChat = chatStatus?.isNewChat ?? true;
 
   const [input, setInput] = useState<string>("");
   const [usage, setUsage] = useState<AppUsage | undefined>(initialLastContext);
@@ -64,9 +81,16 @@ export function Chat({
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
   const currentModelIdRef = useRef(currentModelId);
 
+  // Use ref to always get latest selectedFileIds
+  const selectedFileIdsRef = useRef(selectedFileIds);
+
   useEffect(() => {
     currentModelIdRef.current = currentModelId;
   }, [currentModelId]);
+
+  useEffect(() => {
+    selectedFileIdsRef.current = selectedFileIds;
+  }, [selectedFileIds]);
 
   const {
     messages,
@@ -91,6 +115,8 @@ export function Chat({
             message: request.messages.at(-1),
             selectedChatModel: currentModelIdRef.current,
             selectedVisibilityType: visibilityType,
+            projectId,
+            selectedFileIds: selectedFileIdsRef.current, // ✅ Use ref to get latest value
             ...request.body,
           },
         };
@@ -118,6 +144,19 @@ export function Chat({
       }
     },
   });
+
+  // When first message is sent, revalidate chat status and clear source store
+  useEffect(() => {
+    const hasActualMessages = messages.some(m => m.role === 'user' || m.role === 'assistant');
+    if (hasActualMessages && isNewChat) {
+      // console.log("Chat now has messages, revalidating status:", id);
+      // Revalidate to update isNewChat status
+      mutate(`/api/chat/status?chatId=${id}`);
+      // Clear Zustand store when chat transitions from new to existing
+      // The selections are now saved in the database
+      // resetSourceStore();
+    }
+  }, [messages, isNewChat, id, mutate]);
 
   const searchParams = useSearchParams();
   const query = searchParams.get("query");
@@ -158,6 +197,7 @@ export function Chat({
           chatId={id}
           isReadonly={isReadonly}
           selectedVisibilityType={initialVisibilityType}
+          projectId={projectId}
         />
 
         <Messages
@@ -189,6 +229,9 @@ export function Chat({
               status={status}
               stop={stop}
               usage={usage}
+              // projectId={projectId}
+              // selectedFileIds={selectedFileIds}
+              // setSelectedFileIds={setSelectedFileIds}
             />
           )}
         </div>

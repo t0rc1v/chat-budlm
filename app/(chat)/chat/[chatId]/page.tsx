@@ -9,10 +9,10 @@ import { getChatById, getMessagesByChatId } from "@/lib/db/queries";
 import { convertToUIMessages } from "@/lib/utils";
 import { auth } from "@clerk/nextjs/server";
 
-export default async function Page(props: { params: Promise<{ id: string }> }) {
+export default async function Page(props: { params: Promise<{ chatId: string }> }) {
   const params = await props.params;
-  const { id } = params;
-  const chat = await getChatById({ id });
+  const { chatId } = params;
+  const chat = await getChatById({ id: chatId });
 
   if (!chat) {
     notFound();
@@ -35,7 +35,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   }
 
   const messagesFromDb = await getMessagesByChatId({
-    id,
+    id: chatId,
   });
 
   const uiMessages = convertToUIMessages(messagesFromDb);
@@ -54,6 +54,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
           initialMessages={uiMessages}
           initialVisibilityType={chat.visibility}
           isReadonly={userId !== chat.userId}
+          projectId={chat.projectId}
         />
         <DataStreamHandler />
       </>
@@ -70,6 +71,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
         initialMessages={uiMessages}
         initialVisibilityType={chat.visibility}
         isReadonly={userId !== chat.userId}
+        projectId={chat.projectId}
       />
       <DataStreamHandler />
     </>
