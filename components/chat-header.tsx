@@ -19,11 +19,13 @@ function PureChatHeader({
   selectedVisibilityType,
   isReadonly,
   projectId,
+  filesHidden,
 }: {
   chatId: string;
   selectedVisibilityType: VisibilityType;
   isReadonly: boolean;
   projectId?: string | null;
+  filesHidden?: boolean;
 }) {
   const router = useRouter();
   const { open } = useSidebar();
@@ -67,6 +69,7 @@ function PureChatHeader({
             size="icon"
             onClick={() => setIsFilesSidebarOpen(true)}
             title="Files"
+            className={filesHidden ? "hidden" : ""}
           >
             <Files className="h-5 w-5" />
           </Button>

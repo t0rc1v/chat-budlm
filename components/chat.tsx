@@ -43,6 +43,7 @@ export function Chat({
   autoResume,
   initialLastContext,
   projectId,
+  filesHidden,
 }: {
   id: string;
   initialMessages: ChatMessage[];
@@ -52,6 +53,7 @@ export function Chat({
   autoResume: boolean;
   initialLastContext?: AppUsage;
   projectId?: string | null;
+  filesHidden?: boolean;
 }) {
   const { visibilityType } = useChatVisibility({
     chatId: id,
@@ -198,6 +200,7 @@ export function Chat({
           isReadonly={isReadonly}
           selectedVisibilityType={initialVisibilityType}
           projectId={projectId}
+          filesHidden={filesHidden}
         />
 
         <Messages

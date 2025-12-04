@@ -1,52 +1,43 @@
 // app/(projects)/project/[projectId]/page.tsx
-"use client";
-
-import { useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
-import useSWR from "swr";
-import { toast } from "sonner";
-import { useDropzone } from "react-dropzone";
+import { notFound, redirect } from "next/navigation";
 import { Chat } from "@/components/chat";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  PlusIcon,
-  FileIcon,
-  TrashIcon,
-  MoreHorizontalIcon,
-  ShareIcon,
-  LoaderIcon,
-} from "@/components/icons";
-import { fetcher, generateUUID } from "@/lib/utils";
-import type { Project, ChatFile, Chat as ChatType } from "@/lib/db/schema";
-import { ALLOWED_FILE_TYPES, MAX_PROJECT_SIZE } from "@/lib/constants";
+import { generateUUID } from "@/lib/utils";
 import { DataStreamHandler } from "@/components/data-stream-handler";
-import { AlertCircleIcon, CheckCircleIcon, Loader2, UploadIcon } from "lucide-react";
+import { getProjectById } from "@/lib/db/project-queries";
+import { auth } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
+import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 
-export default function ProjectDetailPage() {
-  const router = useRouter();
-  const params = useParams();
-  const projectId = params.projectId as string;
+export default async function ProjectDetailPage(props: { params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
 
-  const [currentChatId] = useState(generateUUID());
+  const { projectId } = params;
+  const project = await getProjectById({id: projectId})
+
+  if (!project) {
+    notFound();
+  }
+
+  const {userId} = await auth();
+  
+  if (!userId) {
+    redirect("/sign-in");
+  }
+
+  const currentChatId = generateUUID();
+
+  const cookieStore = await cookies();
+  const chatModelFromCookie = cookieStore.get("chat-model");
+  
 
   return (
     <div className="flex h-screen">
-
-
       {/* Main chat area */}
       <div className="flex-1">
         <Chat
           id={currentChatId}
           initialMessages={[]}
-          initialChatModel="chat-model"
+          initialChatModel={chatModelFromCookie?.value || DEFAULT_CHAT_MODEL}
           initialVisibilityType="private"
           isReadonly={false}
           autoResume={false}
