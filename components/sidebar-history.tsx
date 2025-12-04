@@ -98,7 +98,7 @@ export function getChatHistoryPaginationKey(
 
 export function SidebarHistory({ userId }: { userId: string | undefined }) {
   const { setOpenMobile } = useSidebar();
-  const { id } = useParams();
+  const { chatId } = useParams();
 
   const {
     data: paginatedChatHistories,
@@ -146,7 +146,7 @@ export function SidebarHistory({ userId }: { userId: string | undefined }) {
 
     setShowDeleteDialog(false);
 
-    if (deleteId === id) {
+    if (deleteId === chatId) {
       router.push("/");
     }
   };
@@ -227,7 +227,7 @@ export function SidebarHistory({ userId }: { userId: string | undefined }) {
                         {groupedChats.today.map((chat) => (
                           <ChatItem
                             chat={chat}
-                            isActive={chat.id === id}
+                            isActive={chat.id === chatId}
                             key={chat.id}
                             onDelete={(chatId) => {
                               setDeleteId(chatId);
@@ -247,7 +247,7 @@ export function SidebarHistory({ userId }: { userId: string | undefined }) {
                         {groupedChats.yesterday.map((chat) => (
                           <ChatItem
                             chat={chat}
-                            isActive={chat.id === id}
+                            isActive={chat.id === chatId}
                             key={chat.id}
                             onDelete={(chatId) => {
                               setDeleteId(chatId);
@@ -267,7 +267,7 @@ export function SidebarHistory({ userId }: { userId: string | undefined }) {
                         {groupedChats.lastWeek.map((chat) => (
                           <ChatItem
                             chat={chat}
-                            isActive={chat.id === id}
+                            isActive={chat.id === chatId}
                             key={chat.id}
                             onDelete={(chatId) => {
                               setDeleteId(chatId);
@@ -287,7 +287,7 @@ export function SidebarHistory({ userId }: { userId: string | undefined }) {
                         {groupedChats.lastMonth.map((chat) => (
                           <ChatItem
                             chat={chat}
-                            isActive={chat.id === id}
+                            isActive={chat.id === chatId}
                             key={chat.id}
                             onDelete={(chatId) => {
                               setDeleteId(chatId);
@@ -307,7 +307,7 @@ export function SidebarHistory({ userId }: { userId: string | undefined }) {
                         {groupedChats.older.map((chat) => (
                           <ChatItem
                             chat={chat}
-                            isActive={chat.id === id}
+                            isActive={chat.id === chatId}
                             key={chat.id}
                             onDelete={(chatId) => {
                               setDeleteId(chatId);

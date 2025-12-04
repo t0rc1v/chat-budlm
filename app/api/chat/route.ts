@@ -1,4 +1,4 @@
-// update chat route
+// api/chat/route.ts version 2 - Enhanced with smart retrieval from version 1
 import { geolocation } from "@vercel/functions";
 import {
   convertToModelMessages,
@@ -20,7 +20,7 @@ import { getUsage } from "tokenlens/helpers";
 import type { VisibilityType } from "@/components/visibility-selector";
 import { entitlementsByUserType } from "@/lib/ai/entitlements";
 import type { ChatModel } from "@/lib/ai/models";
-import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
+import { type RequestHints, systemPromptWithRAG } from "@/lib/ai/prompts";
 import { myProvider } from "@/lib/ai/providers";
 import { createDocument } from "@/lib/ai/tools/create-document";
 import { getWeather } from "@/lib/ai/tools/get-weather";
@@ -47,9 +47,8 @@ import { auth } from "@clerk/nextjs/server";
 import { UserType } from "@/types";
 import { generateTitleFromUserMessage } from "@/app/(chat)/actions";
 import { queryDocuments } from "@/lib/services/chroma";
-import { deleteChatFileSelections, getProjectById, getProjectFiles } from "@/lib/db/project-queries";
+import { buildRAGContext } from "@/lib/ai/prompts";
 import { getSelectedFileIds } from "@/lib/db/file-queries";
-
 
 export const maxDuration = 60;
 
@@ -114,11 +113,11 @@ export async function POST(request: Request) {
       message: ChatMessage;
       selectedChatModel: ChatModel["id"];
       selectedVisibilityType: VisibilityType;
-      projectId?: string;
+      projectId?: string | null;
       selectedFileIds?: string[];
     } = requestBody;
 
-    console.log("selectedFileIds", selectedFileIds)
+    console.log("selectedFileIds", selectedFileIds, selectedFileIds?.length)
 
     const {userId} = await auth();
 
@@ -140,16 +139,41 @@ export async function POST(request: Request) {
     const chat = await getChatById({ id });
     let messagesFromDb: DBMessage[] = [];
 
+    // ========================================================================
+    // ENHANCED RAG: Get context from selected files with smart retrieval
+    // ========================================================================
+    let ragContext = "";
+    let fileIdsToQuery: string[] = [];
+    let ragMetrics = {
+      documentsRetrieved: 0,
+      filesQueried: 0,
+      totalChunks: 0,
+      retrievalStrategy: 'none' as 'none' | 'specific' | 'overview' | 'explanation',
+    };
+
+    // Extract user query from message
+    const userQuery = message.parts
+      .filter(part => part.type === "text")
+      .map(part => part.text)
+      .join(" ");
+
     if (chat) {
       if (chat.userId !== userId) {
         return new ChatSDKError("forbidden:chat").toResponse();
       }
+      // Get selected file IDs from database
+      fileIdsToQuery = await getSelectedFileIds({ chatId: id });
       // Only fetch messages if chat already exists
       messagesFromDb = await getMessagesByChatId({ id });
     } else {
       const title = await generateTitleFromUserMessage({
         message,
       });
+
+      if (selectedFileIds && selectedFileIds.length > 0) {
+        // New chat - use provided selectedFileIds
+        fileIdsToQuery = selectedFileIds;
+      }
 
       await saveChat({
         id,
@@ -172,59 +196,63 @@ export async function POST(request: Request) {
       country,
     };
 
-    // RAG: Get context from selected files if in project
-    let ragContext = "";
-    let fileIdsToQuery: string[] = [];
-
-    // Get chat data to check for projectId
-    const chatData = await getChatById({ id });
-
-    if (chatData) {
-      // Get selected file IDs from database
-      fileIdsToQuery = await getSelectedFileIds({ chatId: id });
-    } else if (selectedFileIds && selectedFileIds.length > 0) {
-      // New chat in project - use provided selectedFileIds
-      fileIdsToQuery = selectedFileIds;
-    }
-
     console.log("fileIdsToQuery", fileIdsToQuery)
 
     // Query documents if we have files selected
-    if (fileIdsToQuery.length > 0) {
+    if (fileIdsToQuery.length > 0 && userQuery.trim().length > 0) {
       try {
-        // Extract user query from message
-        const userQuery = message.parts
-          .filter(part => part.type === "text")
-          .map(part => part.text)
-          .join(" ");
-
         // Determine collection ID (projectId if in project, otherwise chatId)
-        const collectionId = chatData?.projectId || projectId || id;
+        const collectionId = chat?.projectId || projectId || id;
 
-        // Query relevant documents
-        const { documents, metadatas } = await queryDocuments({
+        // Detect query type for logging
+        const queryType = detectQueryType(userQuery);
+        ragMetrics.retrievalStrategy = queryType;
+
+        // Enhanced query with smart retrieval strategies
+        const queryResult = await queryDocuments({
           projectId: collectionId,
           query: userQuery,
           fileIds: fileIdsToQuery,
-          nResults: 5,
+          nResults: queryType === 'overview' ? 25 : 10, // More chunks for overview queries
+          rerankResults: true, // Enable reranking for better relevance
+          diversityThreshold: 0.7, // Avoid too-similar chunks
+          enableSmartRetrieval: true, // Enable multi-strategy retrieval for overview queries
         });
 
+        const { documents, metadatas, distances, totalChunks, filesQueried } = queryResult;
+
+        // Update metrics
+        ragMetrics = {
+          documentsRetrieved: documents.length,
+          filesQueried: filesQueried.length,
+          totalChunks,
+          retrievalStrategy: queryType,
+        };
+
+        // Build structured RAG context with query awareness
         if (documents.length > 0) {
-          ragContext = `\n\nRelevant context from uploaded documents:\n${documents
-            .map((doc, i) => {
-              const meta = metadatas[i];
-              return `[${meta?.fileName || 'Document'}]: ${doc}`;
-            })
-            .join('\n\n')}`;
+          ragContext = buildRAGContext({
+            documents,
+            metadatas,
+            distances,
+            filesQueried,
+            query: userQuery, // Pass query for context-aware prompt generation
+          });
+
+          console.log("RAG Context Statistics:", {
+            query: userQuery.slice(0, 100),
+            queryType,
+            ...ragMetrics,
+            contextLength: ragContext.length,
+          });
+        } else {
+          console.log("No relevant documents found for query:", userQuery.slice(0, 100));
         }
       } catch (error) {
         console.error("Error retrieving RAG context:", error);
         // Continue without RAG context if there's an error
       }
     }
-
-    console.log("ragContext", ragContext.slice(0, 100))
-
 
     await saveMessages({
       messages: [
@@ -246,9 +274,17 @@ export async function POST(request: Request) {
 
     const stream = createUIMessageStream({
       execute: ({ writer: dataStream }) => {
+        // Use enhanced system prompt with RAG integration and query awareness
+        const enhancedSystemPrompt = systemPromptWithRAG({
+          selectedChatModel,
+          requestHints,
+          ragContext,
+          query: userQuery, // Pass query for context-aware instructions
+        });
+
         const result = streamText({
           model: myProvider.languageModel(selectedChatModel),
-          system: systemPrompt({ selectedChatModel, requestHints }) + ragContext,
+          system: enhancedSystemPrompt,
           messages: convertToModelMessages(uiMessages),
           stopWhen: stepCountIs(5),
           experimental_activeTools:
@@ -273,6 +309,10 @@ export async function POST(request: Request) {
           experimental_telemetry: {
             isEnabled: process.env.NODE_ENV === "production",
             functionId: "stream-text",
+            metadata: {
+              ragEnabled: ragContext.length > 0,
+              // ragMetrics,
+            },
           },
           onFinish: async ({ usage }) => {
             try {
@@ -298,7 +338,13 @@ export async function POST(request: Request) {
               }
 
               const summary = getUsage({ modelId, usage, providers });
-              finalMergedUsage = { ...usage, ...summary, modelId } as AppUsage;
+              finalMergedUsage = { 
+                ...usage, 
+                ...summary, 
+                modelId,
+                // Include RAG metrics in usage data
+                ragMetrics: ragContext.length > 0 ? ragMetrics : undefined,
+              } as AppUsage;
               dataStream.write({ type: "data-usage", data: finalMergedUsage });
             } catch (err) {
               console.warn("TokenLens enrichment failed", err);
@@ -401,4 +447,33 @@ export async function DELETE(request: Request) {
   const deletedChat = await deleteChatById({ id });
 
   return Response.json(deletedChat, { status: 200 });
+}
+
+// ============================================================================
+// HELPER FUNCTION: Query Type Detection (from version 1)
+// ============================================================================
+
+function detectQueryType(query: string): 'overview' | 'explanation' | 'specific' {
+  const lowerQuery = query.toLowerCase();
+  
+  const overviewKeywords = [
+    'overview', 'summary', 'summarize', 'chapter', 
+    'introduction', 'introduce', 'what is covered',
+    'main topics', 'key concepts', 'outline'
+  ];
+  
+  const explanationKeywords = [
+    'explain', 'describe', 'what is', 'how does',
+    'define', 'tell me about', 'elaborate'
+  ];
+
+  if (overviewKeywords.some(kw => lowerQuery.includes(kw))) {
+    return 'overview';
+  }
+  
+  if (explanationKeywords.some(kw => lowerQuery.includes(kw))) {
+    return 'explanation';
+  }
+  
+  return 'specific';
 }

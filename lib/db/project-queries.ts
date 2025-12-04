@@ -137,12 +137,13 @@ export async function createChatFile({
     
     return newFile;
   } catch (error: any) {
-    console.error("createChatFile error:", {
-      message: error?.message,
-      code: error?.code,
-      detail: error?.detail,
-      constraint: error?.constraint,
-    });
+    console.error(error)
+    // console.error("createChatFile error:", {
+    //   message: error?.message,
+    //   code: error?.code,
+    //   detail: error?.detail,
+    //   constraint: error?.constraint,
+    // });
     
     // Re-throw with more context
     throw new Error(`Database error: ${error?.message || "Failed to create file"}`);
