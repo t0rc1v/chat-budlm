@@ -22,7 +22,6 @@ export default async function Page() {
         initialVisibilityType="private"
         isReadonly={false}
         key={id}
-        filesHidden={true}
       />
       <DataStreamHandler />
     </>

@@ -10,7 +10,7 @@ export async function processDocument({
   fileType,
 }: {
   fileId: string;
-  projectId: string;
+  projectId: string | null;
   fileName: string;
   fileUrl: string;
   fileType: string;
@@ -35,6 +35,8 @@ export async function processDocument({
       fileUrl,
       mimeType: fileType,
     });
+
+    console.log("result metadata", result.metadata)
 
     // Update metadata with processing results
     if (result.metadata) {

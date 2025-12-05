@@ -1,5 +1,6 @@
 // app/api/uploadthing/core.ts
-import { createChatFile } from "@/lib/db/project-queries";
+import { toggleFileSelection } from "@/lib/db/file-queries";
+import { createChatFile, getProjectById } from "@/lib/db/project-queries";
 import { getChatById } from "@/lib/db/queries";
 import { processDocument } from "@/lib/services/document-processor";
 import { auth } from "@clerk/nextjs/server";
@@ -37,12 +38,25 @@ export const ourFileRouter = {
   .onUploadComplete(async ({ metadata, file }) => {
     console.log("Upload complete for userId:", metadata.userId);
     console.log("file url", file.ufsUrl);
+    
+    let projectId: string | null = null;
+    let chatId: string | null = null;
+
+    if (metadata.projectId) {
+      const project = await getProjectById({id:metadata.projectId})
+      if(project) projectId = metadata.projectId
+      
+    }
+    if(metadata.chatId) {
+      const chat = await getChatById({id: metadata.chatId})
+      if(chat) chatId = metadata.chatId
+    }
 
     // Create file record
     const chatFileRecord = await createChatFile({
       userId: metadata.userId,
-      chatId: metadata.chatId,
-      projectId: metadata.projectId,
+      chatId: chatId,
+      projectId: projectId,
       fileName: file.name,
       fileUrl: file.ufsUrl,
       fileType: file.type,
@@ -51,45 +65,20 @@ export const ourFileRouter = {
       metadata: {},
     });
 
-    // in /project/[projectId] page only projectId is available
-    if(metadata.projectId) {
-      // Process document asynchronously
-      processDocument({
-        fileId: chatFileRecord.id,
-        projectId: metadata.projectId,
-        fileName: file.name,
-        fileUrl: file.ufsUrl,
-        fileType: file.type,
-      }).catch((error) => {
-        console.error("Background processing error:", error);
-        // Error handling is done inside processDocument
-        // It will update the file status to 'failed'
-      });
-    } else if (metadata.chatId) {
-      // if on chat page check for project id and use that else use chat id since it is not a project chat
-      const chat = await getChatById({id: metadata.chatId})
-      let id = ""
+    processDocument({
+      fileId: chatFileRecord.id,
+      projectId: projectId,
+      fileName: file.name,
+      fileUrl: file.ufsUrl,
+      fileType: file.type,
+    }).catch((error) => {
+      console.error("Background processing error:", error);
+      // Error handling is done inside processDocument
+      // It will update the file status to 'failed'
+    });
 
-      if (!chat) {
-        throw new Error("Project not found")
-      }
-
-      if(chat && chat.projectId) {
-        id = chat.projectId
-      } else {
-        id = chat.id
-      }
-
-      processDocument({
-        fileId: chatFileRecord.id,
-        projectId: id,
-        fileName: file.name,
-        fileUrl: file.ufsUrl,
-        fileType: file.type,
-      }).catch((error) => {
-        console.error("Background processing error:", error);
-      });
-    }
+    // create file selection - select the file by default
+    if(chatId) await toggleFileSelection({chatId, fileId: chatFileRecord.id})
 
     return { uploadedBy: metadata.userId, url: file.ufsUrl, key: file.key };
   }),

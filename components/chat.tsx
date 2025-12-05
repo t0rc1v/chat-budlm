@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
@@ -43,7 +43,6 @@ export function Chat({
   autoResume,
   initialLastContext,
   projectId,
-  filesHidden,
 }: {
   id: string;
   initialMessages: ChatMessage[];
@@ -53,7 +52,6 @@ export function Chat({
   autoResume: boolean;
   initialLastContext?: AppUsage;
   projectId?: string | null;
-  filesHidden?: boolean;
 }) {
   const { visibilityType } = useChatVisibility({
     chatId: id,
@@ -64,6 +62,11 @@ export function Chat({
 
   const { mutate } = useSWRConfig();
   const { setDataStream } = useDataStream();
+  const pathname = usePathname();
+
+  // Derive filesHidden from the current pathname
+  // If we're on the root page ("/"), hide files. Otherwise show them.
+  const filesHidden = pathname === "/";
 
   // Fetch chat status from API
   const { data: chatStatus } = useSWR<{ isNewChat: boolean; chatExists: boolean }>(

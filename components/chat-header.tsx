@@ -19,7 +19,7 @@ function PureChatHeader({
   selectedVisibilityType,
   isReadonly,
   projectId,
-  filesHidden,
+  filesHidden = false,
 }: {
   chatId: string;
   selectedVisibilityType: VisibilityType;
@@ -64,15 +64,14 @@ function PureChatHeader({
         )}
 
         <div className="order-3 flex items-center gap-2 md:ml-auto md:flex md:h-fit px-2">
-          <Button
+          {!filesHidden && <Button
             variant="ghost"
             size="icon"
             onClick={() => setIsFilesSidebarOpen(true)}
             title="Files"
-            className={filesHidden ? "hidden" : ""}
           >
             <Files className="h-5 w-5" />
-          </Button>
+          </Button>}
           <SignedIn>
             <UserButton />
           </SignedIn>
@@ -94,6 +93,7 @@ export const ChatHeader = memo(PureChatHeader, (prevProps, nextProps) => {
     prevProps.chatId === nextProps.chatId &&
     prevProps.selectedVisibilityType === nextProps.selectedVisibilityType &&
     prevProps.isReadonly === nextProps.isReadonly &&
-    prevProps.projectId === nextProps.projectId
+    prevProps.projectId === nextProps.projectId && 
+    prevProps.filesHidden === nextProps.filesHidden
   );
 });

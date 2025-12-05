@@ -23,6 +23,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -91,6 +101,8 @@ export function FilesSidebar({
     getSelectedCount,
   } = useSourceStore();
 
+  console.log("selectedFileIds", selectedFileIds)
+
   // Preview and share state
   const [previewFile, setPreviewFile] = useState<ChatFile | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -101,14 +113,25 @@ export function FilesSidebar({
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [batchSelectedFiles, setBatchSelectedFiles] = useState<string[]>([]);
 
-  // Fetch files
+  // Delete confirmation state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<{ id: string; name: string } | null>(null);
+
+  // Fetch files - with dynamic polling based on processing files
   const { data: files, mutate: mutateFiles } = useSWR<ChatFile[]>(
     chatId || projectId
       ? `/api/files?${projectId ? `projectId=${projectId}` : `chatId=${chatId}`}`
       : null,
     fetcher,
     {
-      refreshInterval: uploadingFiles.size > 0 ? 2000 : 0, // Poll while files are uploading
+      // Poll while files are uploading OR while any files are still processing
+      refreshInterval: (data) => {
+        const hasUploadingFiles = uploadingFiles.size > 0;
+        const hasProcessingFiles = data?.some(
+          (file) => file.embeddingStatus === "pending" || file.embeddingStatus === "processing"
+        );
+        return hasUploadingFiles || hasProcessingFiles ? 2000 : 0; // Poll every 2 seconds
+      },
     }
   );
 
@@ -154,9 +177,16 @@ export function FilesSidebar({
       });
       toast.success("File deleted");
       mutateFiles();
+      setDeleteDialogOpen(false);
+      setFileToDelete(null);
     } catch (error) {
       toast.error("Failed to delete file");
     }
+  };
+
+  const confirmDelete = (file: ChatFile) => {
+    setFileToDelete({ id: file.id, name: file.fileName });
+    setDeleteDialogOpen(true);
   };
 
   const handleToggleSelection = async (fileId: string) => {
@@ -419,7 +449,7 @@ export function FilesSidebar({
 
               toast.success(`${res.length} file(s) uploaded successfully`);
               
-              // Clear uploading files after backend processing starts
+              // Clear uploading files after a short delay
               setTimeout(() => {
                 setUploadingFiles(new Map());
               }, 2000);
@@ -677,7 +707,10 @@ export function FilesSidebar({
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
-                              onClick={() => handleDelete(file.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                confirmDelete(file);
+                              }}
                               >
                               <Trash2 className="h-4 w-4 mr-2" />
                               Delete
@@ -736,6 +769,30 @@ export function FilesSidebar({
         shareEmail={shareEmail}
         setShareEmail={setShareEmail}
         />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete File?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <span className="font-semibold">{fileToDelete?.name}</span>? 
+              This action cannot be undone and will remove the file from all chats.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setFileToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => fileToDelete && handleDelete(fileToDelete.id)}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

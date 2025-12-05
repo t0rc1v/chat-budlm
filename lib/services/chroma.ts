@@ -416,7 +416,7 @@ export async function processAndStoreDocument({
   mimeType,
 }: {
   fileId: string;
-  projectId: string;
+  projectId: string | null;
   fileName: string;
   fileUrl: string;
   mimeType: string;
@@ -440,7 +440,7 @@ export async function processAndStoreDocument({
     const embeddingVectors = await createEmbeddings(chunks);
     
     // Create or get collection
-    const collectionName = `project_${projectId}`;
+    const collectionName = fileId;
     const collection = await client.getOrCreateCollection({
       name: collectionName,
     });
@@ -450,6 +450,7 @@ export async function processAndStoreDocument({
     const metadatas = chunks.map((chunk, i) => ({
       fileId,
       fileName,
+      projectId,
       chunkIndex: i,
       totalChunks: chunks.length,
       ...metadata,
@@ -473,7 +474,7 @@ export async function processAndStoreDocument({
   }
 }
 
-// Enhanced query with multiple retrieval strategies
+// Updated queryDocuments to query from multiple file collections
 export async function queryDocuments({
   projectId,
   query,
@@ -498,8 +499,17 @@ export async function queryDocuments({
   filesQueried: string[];
 }> {
   try {
-    const collectionName = `project_${projectId}`;
-    const collection = await client.getCollection({ name: collectionName });
+    // If no fileIds provided, return empty results
+    if (fileIds.length === 0) {
+      console.warn('No fileIds provided for query');
+      return {
+        documents: [],
+        metadatas: [],
+        distances: [],
+        totalChunks: 0,
+        filesQueried: [],
+      };
+    }
     
     // Detect query type for smart retrieval
     const queryType = detectQueryType(query);
@@ -513,41 +523,74 @@ export async function queryDocuments({
       embeddingCache.set(cacheKey, queryEmbedding);
     }
     
-    // Build where clause for file filtering
-    const whereClause = fileIds.length > 0 
-      ? { fileId: { $in: fileIds } } 
-      : undefined;
+    // Calculate results per file
+    const resultsPerFile = Math.ceil(nResults / fileIds.length);
+    const initialNResults = rerankResults ? resultsPerFile * 3 : resultsPerFile;
     
-    // For overview queries with smart retrieval enabled, use multi-strategy approach
-    if (enableSmartRetrieval && queryType === 'overview') {
-      return await retrieveOverviewContext({
-        collection,
-        query,
-        queryEmbedding,
-        whereClause,
-        nResults,
-        rerankResults,
-      });
-    }
-    
-    // Standard retrieval for specific/explanation queries
-    const initialNResults = rerankResults ? nResults * 3 : nResults;
-    
-    const results = await collection.query({
-      queryEmbeddings: [queryEmbedding],
-      nResults: initialNResults,
-      where: whereClause,
+    // Query each collection (file) in parallel
+    const collectionQueries = fileIds.map(async (fileId) => {
+      try {
+        const collection = await client.getCollection({ name: fileId });
+        
+        // Use smart retrieval for overview queries if enabled
+        if (enableSmartRetrieval && queryType === 'overview') {
+          return await retrieveOverviewContextForFile({
+            collection,
+            fileId,
+            query,
+            queryEmbedding,
+            nResults: resultsPerFile,
+            rerankResults: false, // We'll rerank globally later
+          });
+        }
+        
+        // Standard retrieval
+        const results = await collection.query({
+          queryEmbeddings: [queryEmbedding],
+          nResults: initialNResults,
+        });
+        
+        return {
+          fileId,
+          documents: (results.documents[0] || []).filter((doc): doc is string => doc !== null),
+          metadatas: (results.metadatas[0] || []).filter(meta => meta !== null),
+          distances: (results.distances?.[0] || []).filter((dist): dist is number => dist !== null),
+        };
+      } catch (error) {
+        console.warn(`Failed to query collection ${fileId}:`, error);
+        return {
+          fileId,
+          documents: [],
+          metadatas: [],
+          distances: [],
+        };
+      }
     });
     
-    let documents = (results.documents[0] || []).filter((doc): doc is string => doc !== null);
-    let metadatas = (results.metadatas[0] || []).filter(meta => meta !== null);
-    let distances = (results.distances?.[0] || []).filter((dist): dist is number => dist !== null);
+    // Wait for all collection queries to complete
+    const allResults = await Promise.all(collectionQueries);
     
-    const filesQueried = [...new Set(
-      metadatas
-        .map(m => m?.fileId)
-        .filter((fileId): fileId is string => typeof fileId === 'string')
-    )];
+    // Merge and sort results from all collections
+    const combined = allResults.flatMap(result =>
+      result.documents.map((doc, i) => ({
+        document: doc,
+        metadata: result.metadatas[i],
+        distance: result.distances[i],
+        fileId: result.fileId,
+      }))
+    );
+    
+    // Sort by distance (lower is better)
+    combined.sort((a, b) => a.distance - b.distance);
+    
+    let documents = combined.map(c => c.document);
+    let metadatas = combined.map(c => c.metadata);
+    let distances = combined.map(c => c.distance);
+    
+    const totalChunks = documents.length;
+    const filesQueried = allResults
+      .filter(r => r.documents.length > 0)
+      .map(r => r.fileId);
     
     // Apply diversity filtering
     if (documents.length > nResults) {
@@ -564,7 +607,7 @@ export async function queryDocuments({
       distances = diverseResults.distances;
     }
     
-    // Optional reranking
+    // Optional global reranking
     if (rerankResults && documents.length > 0) {
       const reranked = await rerankByRelevance({
         query,
@@ -585,17 +628,141 @@ export async function queryDocuments({
       documents,
       metadatas,
       distances,
-      totalChunks: results.documents[0]?.length || 0,
+      totalChunks,
       filesQueried,
     };
   } catch (error) {
     console.error("Error querying documents:", error);
-    return { 
-      documents: [], 
-      metadatas: [], 
+    return {
+      documents: [],
+      metadatas: [],
       distances: [],
       totalChunks: 0,
       filesQueried: [],
+    };
+  }
+}
+
+// Helper function for overview retrieval from a single file collection
+async function retrieveOverviewContextForFile({
+  collection,
+  fileId,
+  query,
+  queryEmbedding,
+  nResults,
+  rerankResults,
+}: {
+  collection: any;
+  fileId: string;
+  query: string;
+  queryEmbedding: number[];
+  nResults: number;
+  rerankResults: boolean;
+}): Promise<{
+  fileId: string;
+  documents: string[];
+  metadatas: any[];
+  distances: number[];
+}> {
+  try {
+    // Strategy 1: Get semantically relevant chunks (60% of budget)
+    const semanticBudget = Math.floor(nResults * 0.6);
+    
+    const semanticResults = await collection.query({
+      queryEmbeddings: [queryEmbedding],
+      nResults: semanticBudget,
+    });
+
+    // Strategy 2: Get structural chunks (40% of budget)
+    const structuralQueries = [
+      "introduction objectives learning outcomes",
+      "key concepts main topics definitions",
+    ];
+
+    const structuralBudget = Math.floor(nResults * 0.4);
+    const structuralResults = await Promise.all(
+      structuralQueries.map(async (structQuery) => {
+        const cacheKey = getCacheKey(structQuery);
+        let structEmb = embeddingCache.get(cacheKey);
+        
+        if (!structEmb) {
+          [structEmb] = await embeddings.embedDocuments([structQuery]);
+          embeddingCache.set(cacheKey, structEmb);
+        }
+        
+        return collection.query({
+          queryEmbeddings: [structEmb],
+          nResults: Math.floor(structuralBudget / structuralQueries.length),
+        });
+      })
+    );
+
+    // Combine results, removing duplicates
+    const allIds = new Set<string>();
+    const allDocuments: string[] = [];
+    const allMetadatas: any[] = [];
+    const allDistances: number[] = [];
+
+    const addResults = (results: any, baseScore: number = 0) => {
+      if (results?.documents?.[0]) {
+        results.documents[0].forEach((doc: string, idx: number) => {
+          const id = results.ids?.[0]?.[idx];
+          if (id && !allIds.has(id)) {
+            allIds.add(id);
+            allDocuments.push(doc);
+            allMetadatas.push(results.metadatas?.[0]?.[idx] || {});
+            allDistances.push((results.distances?.[0]?.[idx] ?? 1) + baseScore);
+          }
+        });
+      }
+    };
+
+    // Add semantic results (highest priority)
+    addResults(semanticResults, 0);
+
+    // Add structural results (medium priority)
+    structuralResults.forEach((result) => {
+      addResults(result, 0.1);
+    });
+
+    // Sort by relevance
+    const indexed = allDocuments.map((doc, i) => ({
+      doc,
+      metadata: allMetadatas[i],
+      distance: allDistances[i],
+      chunkIndex: allMetadatas[i]?.chunkIndex ?? 999999
+    }));
+
+    indexed.sort((a, b) => {
+      const scoreDiff = a.distance - b.distance;
+      if (Math.abs(scoreDiff) > 0.2) {
+        return scoreDiff;
+      }
+      return a.chunkIndex - b.chunkIndex;
+    });
+
+    const limited = indexed.slice(0, nResults);
+
+    return {
+      fileId,
+      documents: limited.map(r => r.doc),
+      metadatas: limited.map(r => r.metadata),
+      distances: limited.map(r => r.distance),
+    };
+
+  } catch (error) {
+    console.error(`Error in overview retrieval for file ${fileId}:`, error);
+    // Fallback to standard retrieval
+    const results = await collection.query({
+      queryEmbeddings: [queryEmbedding],
+      nResults,
+    });
+    
+    return {
+      fileId,
+      documents: (results.documents[0] || []).filter((doc: string): doc is string => doc !== null),
+      metadatas: (results.metadatas[0] || []).filter((meta: any) => meta !== null),
+      distances: (results.distances?.[0] || []).filter((dist: number): dist is number => dist !== null),
     };
   }
 }
@@ -980,6 +1147,7 @@ function generateQueryVariations(query: string): string[] {
 }
 
 // Get file chunks for preview
+// Updated getFileChunks to query from file collection
 export async function getFileChunks({
   projectId,
   fileId,
@@ -988,12 +1156,9 @@ export async function getFileChunks({
   fileId: string;
 }): Promise<Array<{ document: string; metadata: any }>> {
   try {
-    const collectionName = `project_${projectId}`;
-    const collection = await client.getCollection({ name: collectionName });
+    const collection = await client.getCollection({ name: fileId });
     
-    const results = await collection.get({
-      where: { fileId },
-    });
+    const results = await collection.get();
     
     return results.documents.map((doc, i) => ({
       document: doc || "",
@@ -1005,35 +1170,21 @@ export async function getFileChunks({
   }
 }
 
-// Delete file from collection
-export async function deleteFileFromCollection({
-  projectId,
+// Updated deleteFileFromCollection to delete the entire collection
+export async function deleteFileCollection({
   fileId,
 }: {
-  projectId: string;
   fileId: string;
 }): Promise<void> {
   try {
-    const collectionName = `project_${projectId}`;
-    const collection = await client.getCollection({ name: collectionName });
+    // Delete the collection named after the fileId
+    await client.deleteCollection({ name: fileId });
     
-    const results = await collection.get({
-      where: { fileId },
-    });
-    
-    if (results.ids.length > 0) {
-      await collection.delete({ ids: results.ids });
-      
-      // Clear cache entries for this file
-      results.documents.forEach(doc => {
-        if (doc) {
-          const cacheKey = getCacheKey(doc);
-          embeddingCache.delete(cacheKey);
-        }
-      });
-    }
+    // Clear cache entries for this file (optional, but good for memory management)
+    // Note: This requires iterating through cache, which may not be efficient
+    // Consider implementing cache cleanup differently if performance is an issue
   } catch (error) {
-    console.error("Error deleting file from collection:", error);
+    console.error(`Error deleting collection for file ${fileId}:`, error);
   }
 }
 

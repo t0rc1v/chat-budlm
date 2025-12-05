@@ -11,7 +11,7 @@ import {
 } from "@/lib/db/project-queries";
 import { ChatSDKError } from "@/lib/errors";
 import { processDocument } from "@/lib/services/document-processor";
-import { deleteFileFromCollection } from "@/lib/services/chroma";
+import { deleteFileCollection } from "@/lib/services/chroma";
 import { ALLOWED_FILE_TYPES } from "@/lib/constants";
 import { getChatById } from "@/lib/db/queries";
 
@@ -206,7 +206,7 @@ export async function DELETE(request: Request) {
 
     // Delete from ChromaDB
     try {
-      await deleteFileFromCollection({ projectId, fileId: id });
+      await deleteFileCollection({ fileId: id });
     } catch (error) {
       console.error("Error deleting from ChromaDB:", error);
     }
