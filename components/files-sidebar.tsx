@@ -78,6 +78,9 @@ export function FilesSidebar({
     new Map()
   );
 
+  // Track file IDs that were just uploaded to auto-select them
+  const [newlyUploadedFileIds, setNewlyUploadedFileIds] = useState<string[]>([]);
+
   // Fetch chat status from API
   const { data: chatStatus } = useSWR<{ isNewChat: boolean; chatExists: boolean }>(
     chatId ? `/api/chat/status?chatId=${chatId}` : null,
@@ -112,10 +115,14 @@ export function FilesSidebar({
   // Batch operations state
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [batchSelectedFiles, setBatchSelectedFiles] = useState<string[]>([]);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+  const [showBatchDeleteDialog, setShowBatchDeleteDialog] = useState(false);
+
 
   // Delete confirmation state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch files - with dynamic polling based on processing files
   const { data: files, mutate: mutateFiles } = useSWR<ChatFile[]>(
@@ -134,6 +141,27 @@ export function FilesSidebar({
       },
     }
   );
+
+  // Create combined list of files with uploading files shown as temporary entries
+  const allFiles = useMemo(() => {
+    const filesList = files || [];
+    const uploadingFilesList = Array.from(uploadingFiles.values()).map((uploadFile) => ({
+      id: uploadFile.id,
+      fileName: uploadFile.name,
+      fileSize: 0, // Unknown during upload
+      embeddingStatus: uploadFile.status === "uploading" ? "pending" : "processing",
+      isUploading: true,
+      uploadProgress: uploadFile.progress,
+      uploadStatus: uploadFile.status,
+    }));
+
+    // Combine and sort: uploading files first, then by creation date (newest first)
+    return [...uploadingFilesList, ...filesList] as (ChatFile & { 
+      isUploading?: boolean; 
+      uploadProgress?: number;
+      uploadStatus?: UploadingFile["status"];
+    })[];
+  }, [files, uploadingFiles]);
 
   // Fetch file selections for existing chats
   const { data: selections, mutate: mutateSelections } = useSWR(
@@ -171,6 +199,7 @@ export function FilesSidebar({
   }, [isNewChat, chatId, selectedFileIds, mutateSelections, deselectAllStore]);
 
   const handleDelete = async (fileId: string) => {
+    setIsDeleting(true)
     try {
       await fetch(`/api/files?id=${fileId}&projectId=${projectId || chatId}`, {
         method: "DELETE",
@@ -181,6 +210,8 @@ export function FilesSidebar({
       setFileToDelete(null);
     } catch (error) {
       toast.error("Failed to delete file");
+    } finally {
+      setIsDeleting(false)
     }
   };
 
@@ -225,8 +256,8 @@ export function FilesSidebar({
 
   // Get completed files that can be selected
   const completedFiles = useMemo(() => {
-    return files?.filter((f) => f.embeddingStatus === "completed") || [];
-  }, [files]);
+    return allFiles?.filter((f) => !f.isUploading && f.embeddingStatus === "completed") || [];
+  }, [allFiles]);
 
   // Check if all completed files are selected
   const allCompletedSelected = useMemo(() => {
@@ -283,6 +314,7 @@ export function FilesSidebar({
   const handleBatchDelete = async () => {
     if (batchSelectedFiles.length === 0) return;
 
+    setIsBatchDeleting(true);
     try {
       await Promise.all(
         batchSelectedFiles.map((fileId) =>
@@ -297,6 +329,8 @@ export function FilesSidebar({
       mutateFiles();
     } catch (error) {
       toast.error("Failed to delete files");
+    } finally {
+      setIsBatchDeleting(false);
     }
   };
 
@@ -464,7 +498,7 @@ export function FilesSidebar({
             />
 
           {/* Batch Mode Toggle */}
-          {files && files.length > 0 && (
+          {allFiles && allFiles.length > 0 && (
             <div className="flex items-center gap-2">
               <Button
                 variant={isBatchMode ? "default" : "outline"}
@@ -483,16 +517,16 @@ export function FilesSidebar({
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      const allFileIds = files.map((f) => f.id);
+                      const allFileIds = allFiles.filter(f => !f.isUploading).map((f) => f.id);
                       setBatchSelectedFiles(
-                        batchSelectedFiles.length === files.length
+                        batchSelectedFiles.length === allFileIds.length
                           ? []
                           : allFileIds
                         );
                       }}
                       className="h-8 text-xs"
                       >
-                    {batchSelectedFiles.length === files.length
+                    {batchSelectedFiles.length === allFiles.filter(f => !f.isUploading).length
                       ? "Deselect All"
                       : "Select All"}
                   </Button>
@@ -500,10 +534,18 @@ export function FilesSidebar({
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={handleBatchDelete}
+                      onClick={() => setShowBatchDeleteDialog(true)}
                       className="h-8 text-xs"
+                      disabled={isBatchDeleting}
                     >
-                      Delete ({batchSelectedFiles.length})
+                      {isBatchDeleting ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        `Delete (${batchSelectedFiles.length})`
+                      )}
                     </Button>
                   )}
                 </>
@@ -512,47 +554,6 @@ export function FilesSidebar({
           )}
 
           <Separator />
-
-          {/* Upload Progress */}
-          {uploadingFiles.size > 0 && (
-            <div className="space-y-2">
-              {Array.from(uploadingFiles.entries()).map(([id, file]) => (
-                <div
-                  key={id}
-                  className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50"
-                >
-                  {file.status === "error" ? (
-                    <XCircle className="h-4 w-4 text-red-500" />
-                  ) : file.status === "complete" ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{file.name}</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs text-muted-foreground">
-                        {getUploadStatusText(file.status)}
-                      </p>
-                      {file.status === "uploading" && (
-                        <span className="text-xs text-muted-foreground">
-                          {file.progress}%
-                        </span>
-                      )}
-                    </div>
-                    {file.status === "uploading" && (
-                      <div className="mt-1 w-full bg-muted rounded-full h-1.5">
-                        <div
-                          className="bg-primary h-1.5 rounded-full transition-all duration-300"
-                          style={{ width: `${file.progress}%` }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
 
           {completedFiles.length > 0 && !isBatchMode && (
             <Button
@@ -578,7 +579,7 @@ export function FilesSidebar({
           {/* Files List */}
           <ScrollArea className="h-[calc(100vh-400px)]">
             <div className="space-y-2">
-              {files?.length === 0 && uploadingFiles.size === 0 && (
+              {allFiles?.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <FileText className="h-12 w-12 text-muted-foreground/50 mb-3" />
                   <p className="text-sm font-medium text-muted-foreground mb-1">
@@ -590,15 +591,16 @@ export function FilesSidebar({
                 </div>
               )}
 
-              {files?.map((file) => (
+              {allFiles?.map((file) => (
                 <div
                 key={file.id}
                 className={`
                   group w-full grid grid-cols-[auto_1fr] items-center gap-2 p-2 font-mono text-sm cursor-pointer border bg-card hover:bg-accent/50 transition-all duration-200 rounded-lg 
                   ${isBatchMode && batchSelectedFiles.includes(file.id) ? "ring-2 ring-primary" : ""}
+                  ${file.isUploading ? "opacity-75" : ""}
                   `}
                   onClick={() => {
-                    if (isBatchMode) {
+                    if (isBatchMode && !file.isUploading) {
                       setBatchSelectedFiles((prev) =>
                         prev.includes(file.id)
                           ? prev.filter((id) => id !== file.id)
@@ -612,15 +614,18 @@ export function FilesSidebar({
                     <Checkbox
                     checked={batchSelectedFiles.includes(file.id)}
                     onCheckedChange={(checked) => {
-                      setBatchSelectedFiles((prev) =>
-                          checked
-                            ? [...prev, file.id]
-                            : prev.filter((id) => id !== file.id)
-                          );
+                      if (!file.isUploading) {
+                        setBatchSelectedFiles((prev) =>
+                            checked
+                              ? [...prev, file.id]
+                              : prev.filter((id) => id !== file.id)
+                            );
+                        }
                       }}
+                      disabled={file.isUploading}
                       />
                   ) : (
-                    (chatId || isNewChat) && (
+                    (chatId || isNewChat) && !file.isUploading && (
                       <Checkbox
                         checked={isFileSelected(file.id)}
                         onCheckedChange={() => handleToggleSelection(file.id)}
@@ -637,9 +642,11 @@ export function FilesSidebar({
                         {file.fileName}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] text-muted-foreground">
-                          {(file.fileSize / 1024).toFixed(1)} KB
-                        </span>
+                        {!file.isUploading && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {(file.fileSize / 1024).toFixed(1)} KB
+                          </span>
+                        )}
                         {file.metadata?.pageCount && (
                           <>
                             <span className="text-[10px] text-muted-foreground">•</span>
@@ -660,13 +667,28 @@ export function FilesSidebar({
                       <div className="flex items-center gap-1 mt-1">
                         {getStatusIcon(file.embeddingStatus)}
                         <span className="text-xs text-muted-foreground">
-                          {getStatusText(file.embeddingStatus)}
+                          {file.isUploading && file.uploadStatus === "uploading"
+                            ? `Uploading... ${file.uploadProgress}%`
+                            : getStatusText(file.embeddingStatus)}
                         </span>
                       </div>
+                      {/* Upload Progress Bar */}
+                      {file.isUploading && file.uploadStatus === "uploading" && (
+                        <div className="mt-1.5 w-full bg-muted rounded-full h-1.5">
+                          <div
+                            className="bg-primary h-1.5 rounded-full transition-all duration-300"
+                            style={{ width: `${file.uploadProgress}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
 
+                    {isDeleting && fileToDelete?.id === file.id && <Loader2 className="h-3 w-3 animate-spin text-red-500" />}
+
+                    {isBatchDeleting && batchSelectedFiles.includes(file.id) && <Loader2 className="h-3 w-3 animate-spin text-red-500" />}
+
                     {/* Actions */}
-                    {!isBatchMode && (
+                    {!isBatchMode && !file.isUploading && (
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -731,7 +753,7 @@ export function FilesSidebar({
           <div className="text-xs text-muted-foreground space-y-1">
             <div className="flex items-center justify-between">
               <span>Total files:</span>
-              <span className="font-medium">{files?.length || 0}</span>
+              <span className="font-medium">{allFiles?.filter(f => !f.isUploading).length || 0}</span>
             </div>
             <div className="flex items-center justify-between">
               <span>Selected:</span>
@@ -787,8 +809,48 @@ export function FilesSidebar({
             <AlertDialogAction
               onClick={() => fileToDelete && handleDelete(fileToDelete.id)}
               className="bg-destructive hover:bg-destructive/90"
+              disabled={isDeleting}
             >
-              Delete
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Batch Delete Confirmation Dialog */}
+      <AlertDialog open={showBatchDeleteDialog} onOpenChange={setShowBatchDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {batchSelectedFiles.length} File{batchSelectedFiles.length > 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {batchSelectedFiles.length} selected file{batchSelectedFiles.length > 1 ? 's' : ''}? 
+              This action cannot be undone and will remove {batchSelectedFiles.length > 1 ? 'these files' : 'this file'} from all chats.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBatchDeleting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBatchDelete}
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={isBatchDeleting}
+            >
+              {isBatchDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

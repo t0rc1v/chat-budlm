@@ -1,6 +1,5 @@
 // lib/stores/use-source-store.ts
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
 
 interface SourceState {
   // Selected file IDs for new chats (before chat is created)
@@ -27,7 +26,6 @@ const initialState = {
 };
 
 export const useSourceStore = create<SourceState>()(
-  persist(
     (set, get) => ({
       ...initialState,
 
@@ -92,11 +90,4 @@ export const useSourceStore = create<SourceState>()(
         set(initialState);
       },
     }),
-    {
-      name: 'source-storage',
-      storage: createJSONStorage(() => sessionStorage),
-      // Only persist selectedFileIds
-      partialize: (state) => ({ selectedFileIds: state.selectedFileIds }),
-    }
-  )
 );
