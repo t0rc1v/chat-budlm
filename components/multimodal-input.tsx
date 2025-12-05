@@ -87,6 +87,8 @@ function PureMultimodalInput({
   const adjustHeight = useCallback(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "44px";
+      const scrollHeight = textareaRef.current.scrollHeight;
+      textareaRef.current.style.height = `${Math.min(scrollHeight, 200)}px`;
     }
   }, []);
 
@@ -94,7 +96,7 @@ function PureMultimodalInput({
     if (textareaRef.current) {
       adjustHeight();
     }
-  }, [adjustHeight]);
+  }, [adjustHeight, input]);
 
   const resetHeight = useCallback(() => {
     if (textareaRef.current) {
@@ -125,6 +127,7 @@ function PureMultimodalInput({
 
   const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(event.target.value);
+    adjustHeight();
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -275,7 +278,7 @@ function PureMultimodalInput({
         setUploadQueue([]);
       }
     },
-    [setAttachments],
+    [setAttachments, uploadFile],
   );
 
   // Add paste event listener to textarea
@@ -365,6 +368,7 @@ function PureMultimodalInput({
             ref={textareaRef}
             rows={1}
             value={input}
+            style={{ overflowY: 'auto' }}
           />{" "}
           <Context {...contextProps} />
         </div>
