@@ -7,6 +7,7 @@ import "./globals.css";
 import { QueryProvider } from "@/components/tanstack-query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { dark } from '@clerk/themes'
+import 'katex/dist/katex.min.css'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
