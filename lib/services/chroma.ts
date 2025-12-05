@@ -410,13 +410,11 @@ async function createEmbeddings(texts: string[]): Promise<number[][]> {
 // Main function to process and store document
 export async function processAndStoreDocument({
   fileId,
-  projectId,
   fileName,
   fileUrl,
   mimeType,
 }: {
   fileId: string;
-  projectId: string | null;
   fileName: string;
   fileUrl: string;
   mimeType: string;
@@ -450,7 +448,6 @@ export async function processAndStoreDocument({
     const metadatas = chunks.map((chunk, i) => ({
       fileId,
       fileName,
-      projectId,
       chunkIndex: i,
       totalChunks: chunks.length,
       ...metadata,
@@ -476,7 +473,6 @@ export async function processAndStoreDocument({
 
 // Updated queryDocuments to query from multiple file collections
 export async function queryDocuments({
-  projectId,
   query,
   fileIds,
   nResults = 5,
@@ -484,7 +480,6 @@ export async function queryDocuments({
   diversityThreshold = 0.7,
   enableSmartRetrieval = true,
 }: {
-  projectId: string;
   query: string;
   fileIds: string[];
   nResults?: number;
@@ -1065,12 +1060,10 @@ async function rerankByRelevance({
 
 // Enhanced query with multi-query retrieval
 export async function queryDocumentsWithMultiQuery({
-  projectId,
   query,
   fileIds,
   nResults = 5,
 }: {
-  projectId: string;
   query: string;
   fileIds: string[];
   nResults?: number;
@@ -1085,7 +1078,6 @@ export async function queryDocumentsWithMultiQuery({
   const allResults = await Promise.all(
     queryVariations.map(q => 
       queryDocuments({
-        projectId,
         query: q,
         fileIds,
         nResults: Math.ceil(nResults / 2),
@@ -1149,10 +1141,8 @@ function generateQueryVariations(query: string): string[] {
 // Get file chunks for preview
 // Updated getFileChunks to query from file collection
 export async function getFileChunks({
-  projectId,
   fileId,
 }: {
-  projectId: string;
   fileId: string;
 }): Promise<Array<{ document: string; metadata: any }>> {
   try {

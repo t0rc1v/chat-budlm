@@ -4,13 +4,11 @@ import { processAndStoreDocument, isValidDocumentType } from "./chroma";
 
 export async function processDocument({
   fileId,
-  projectId,
   fileName,
   fileUrl,
   fileType,
 }: {
   fileId: string;
-  projectId: string | null;
   fileName: string;
   fileUrl: string;
   fileType: string;
@@ -30,7 +28,6 @@ export async function processDocument({
     // Process and store in ChromaDB
     const result = await processAndStoreDocument({
       fileId,
-      projectId,
       fileName,
       fileUrl,
       mimeType: fileType,

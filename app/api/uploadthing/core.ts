@@ -67,7 +67,6 @@ export const ourFileRouter = {
 
     processDocument({
       fileId: chatFileRecord.id,
-      projectId: projectId,
       fileName: file.name,
       fileUrl: file.ufsUrl,
       fileType: file.type,
