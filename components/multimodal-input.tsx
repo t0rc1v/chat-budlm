@@ -46,6 +46,7 @@ import { PreviewAttachment } from "./preview-attachment";
 import { SuggestedActions } from "./suggested-actions";
 import { Button } from "./ui/button";
 import type { VisibilityType } from "./visibility-selector";
+import { ToolsDropdown } from "./tools-dropdown";
 
 function PureMultimodalInput({
   chatId,
@@ -374,6 +375,7 @@ function PureMultimodalInput({
               selectedModelId={selectedModelId}
               status={status}
             />
+            <ToolsDropdown />
             <ModelSelectorCompact
               onModelChange={onModelChange}
               selectedModelId={selectedModelId}

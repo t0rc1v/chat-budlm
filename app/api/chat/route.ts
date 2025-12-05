@@ -20,7 +20,7 @@ import { getUsage } from "tokenlens/helpers";
 import type { VisibilityType } from "@/components/visibility-selector";
 import { entitlementsByUserType } from "@/lib/ai/entitlements";
 import type { ChatModel } from "@/lib/ai/models";
-import { type RequestHints, systemPromptWithRAG } from "@/lib/ai/prompts";
+import { buildSystemPromptWithTools, type RequestHints, systemPromptWithRAG } from "@/lib/ai/prompts";
 import { myProvider } from "@/lib/ai/providers";
 import { createDocument } from "@/lib/ai/tools/create-document";
 import { getWeather } from "@/lib/ai/tools/get-weather";
@@ -49,6 +49,7 @@ import { generateTitleFromUserMessage } from "@/app/(chat)/actions";
 import { queryDocuments } from "@/lib/services/chroma";
 import { buildRAGContext } from "@/lib/ai/prompts";
 import { getSelectedFileIds } from "@/lib/db/file-queries";
+import { WritingStyle } from "@/lib/stores/use-tools-store";
 
 export const maxDuration = 60;
 
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
       selectedVisibilityType,
       projectId,
       selectedFileIds,
+      toolsSettings,
     }: {
       id: string;
       message: ChatMessage;
@@ -115,9 +117,15 @@ export async function POST(request: Request) {
       selectedVisibilityType: VisibilityType;
       projectId?: string | null;
       selectedFileIds?: string[];
+      toolsSettings?: {
+        guidedLearning?: boolean;
+        writingStyle?: WritingStyle;
+        imageGeneration?: boolean;
+      };
     } = requestBody;
 
     console.log("selectedFileIds", selectedFileIds, selectedFileIds?.length)
+    console.log("toolsSettings", toolsSettings)
 
     const {userId} = await auth();
 
@@ -210,7 +218,6 @@ export async function POST(request: Request) {
 
         // Enhanced query with smart retrieval strategies
         const queryResult = await queryDocuments({
-          projectId: collectionId,
           query: userQuery,
           fileIds: fileIdsToQuery,
           nResults: queryType === 'overview' ? 25 : 10, // More chunks for overview queries
@@ -275,11 +282,18 @@ export async function POST(request: Request) {
     const stream = createUIMessageStream({
       execute: ({ writer: dataStream }) => {
         // Use enhanced system prompt with RAG integration and query awareness
-        const enhancedSystemPrompt = systemPromptWithRAG({
+        const baseSystemPrompt = systemPromptWithRAG({
           selectedChatModel,
           requestHints,
           ragContext,
           query: userQuery, // Pass query for context-aware instructions
+        });
+        // Apply tools modifications to the system prompt
+        const enhancedSystemPrompt = buildSystemPromptWithTools({
+          basePrompt: baseSystemPrompt,
+          guidedLearning: toolsSettings?.guidedLearning ?? false,
+          writingStyle: toolsSettings?.writingStyle ?? 'normal',
+          imageGeneration: toolsSettings?.imageGeneration ?? false,
         });
 
         const result = streamText({

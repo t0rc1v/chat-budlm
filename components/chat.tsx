@@ -33,6 +33,7 @@ import { ChatHeader } from "./chat-header";
 import { Messages } from "./messages";
 import { Artifact } from "./artifact";
 import { useSourceStore } from "@/lib/stores/use-source-store";
+import { useToolsStore } from "@/lib/stores/use-tools-store";
 
 export function Chat({
   id,
@@ -59,6 +60,11 @@ export function Chat({
   });
 
   const {selectedFileIds, reset: resetSourceStore} = useSourceStore()
+  const {
+    guidedLearningEnabled,
+    writingStyle,
+    imageGenerationEnabled,
+  } = useToolsStore();
 
   const { mutate } = useSWRConfig();
   const { setDataStream } = useDataStream();
@@ -88,6 +94,23 @@ export function Chat({
 
   // Use ref to always get latest selectedFileIds
   const selectedFileIdsRef = useRef(selectedFileIds);
+
+  // Create a ref to store the latest tools settings:
+  const toolsSettingsRef = useRef({
+    guidedLearning: guidedLearningEnabled,
+    writingStyle: writingStyle,
+    imageGeneration: imageGenerationEnabled,
+  });
+
+  // Update the ref whenever tools settings change:
+  useEffect(() => {
+    toolsSettingsRef.current = {
+      guidedLearning: guidedLearningEnabled,
+      writingStyle: writingStyle,
+      imageGeneration: imageGenerationEnabled,
+    };
+  }, [guidedLearningEnabled, writingStyle, imageGenerationEnabled]);
+
 
   useEffect(() => {
     currentModelIdRef.current = currentModelId;
@@ -122,6 +145,7 @@ export function Chat({
             selectedVisibilityType: visibilityType,
             projectId,
             selectedFileIds: selectedFileIdsRef.current, // ✅ Use ref to get latest value
+            toolsSettings: toolsSettingsRef.current, // Add tools settings
             ...request.body,
           },
         };
