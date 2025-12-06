@@ -250,6 +250,7 @@ const DocumentContent = ({ document }: { document: Document }) => {
     {
       "p-4 sm:px-14 sm:py-16": document.kind === "text",
       "p-0": document.kind === "code",
+      "p-4": ["quiz", "flashcard", "report", "slides"].includes(document.kind),
     }
   );
 
@@ -263,6 +264,15 @@ const DocumentContent = ({ document }: { document: Document }) => {
   };
 
   const handleSaveContent = () => null;
+
+  // Parse content for preview rendering
+  const parseContent = (content: string) => {
+    try {
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  };
 
   return (
     <div className={containerClassName}>
@@ -289,7 +299,236 @@ const DocumentContent = ({ document }: { document: Document }) => {
           status={artifact.status}
           title={document.title}
         />
+      ) : document.kind === "quiz" ? (
+        <QuizPreview content={parseContent(document.content ?? "")} />
+      ) : document.kind === "flashcard" ? (
+        <FlashcardPreview content={parseContent(document.content ?? "")} />
+      ) : document.kind === "report" ? (
+        <ReportPreview content={parseContent(document.content ?? "")} />
+      ) : document.kind === "slides" ? (
+        <SlidesPreview content={parseContent(document.content ?? "")} />
       ) : null}
+    </div>
+  );
+};
+
+// Quiz Preview Component
+const QuizPreview = ({ content }: { content: any }) => {
+  if (!content || !content.questions) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        Loading quiz...
+      </div>
+    );
+  }
+
+  const questionCount = content.questions.length;
+  const firstQuestion = content.questions[0];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium">
+          {questionCount} Question{questionCount !== 1 ? 's' : ''}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {content.difficulty && `Difficulty: ${content.difficulty}`}
+        </div>
+      </div>
+      
+      {firstQuestion && (
+        <div className="space-y-2 rounded-lg border p-3 bg-background/50">
+          <div className="text-sm font-medium">Q1. {firstQuestion.question}</div>
+          <div className="space-y-1">
+            {firstQuestion.options?.slice(0, 2).map((option: string, idx: number) => (
+              <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="size-4 rounded-full border" />
+                <span>{option}</span>
+              </div>
+            ))}
+            {firstQuestion.options?.length > 2 && (
+              <div className="text-xs text-muted-foreground">
+                +{firstQuestion.options.length - 2} more options
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {questionCount > 1 && (
+        <div className="text-xs text-muted-foreground text-center">
+          +{questionCount - 1} more question{questionCount > 2 ? 's' : ''}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Flashcard Preview Component
+const FlashcardPreview = ({ content }: { content: any }) => {
+  if (!content || !content.cards) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        Loading flashcards...
+      </div>
+    );
+  }
+
+  const cardCount = content.cards.length;
+  const firstCard = content.cards[0];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium">
+          {cardCount} Flashcard{cardCount !== 1 ? 's' : ''}
+        </div>
+      </div>
+      
+      {firstCard && (
+        <div className="space-y-3">
+          <div className="rounded-lg border p-4 bg-background/50">
+            <div className="text-xs text-muted-foreground mb-2">Front</div>
+            <div className="text-sm font-medium line-clamp-3">
+              {firstCard.front}
+            </div>
+          </div>
+          
+          <div className="rounded-lg border p-4 bg-background/50">
+            <div className="text-xs text-muted-foreground mb-2">Back</div>
+            <div className="text-sm line-clamp-3 text-muted-foreground">
+              {firstCard.back}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {cardCount > 1 && (
+        <div className="text-xs text-muted-foreground text-center">
+          +{cardCount - 1} more card{cardCount > 2 ? 's' : ''}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Report Preview Component
+const ReportPreview = ({ content }: { content: any }) => {
+  if (!content) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        Loading report...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {content.title && (
+        <div className="font-semibold text-base line-clamp-2">
+          {content.title}
+        </div>
+      )}
+      
+      {content.executive_summary && (
+        <div className="space-y-1">
+          <div className="text-xs font-medium text-muted-foreground">
+            Executive Summary
+          </div>
+          <div className="text-sm line-clamp-4 text-muted-foreground">
+            {content.executive_summary}
+          </div>
+        </div>
+      )}
+      
+      {content.sections && content.sections.length > 0 && (
+        <div className="space-y-2 pt-2 border-t">
+          <div className="text-xs font-medium text-muted-foreground">
+            Sections ({content.sections.length})
+          </div>
+          {content.sections.slice(0, 3).map((section: any, idx: number) => (
+            <div key={idx} className="text-xs text-muted-foreground">
+              • {section.heading || section.title}
+            </div>
+          ))}
+          {content.sections.length > 3 && (
+            <div className="text-xs text-muted-foreground">
+              +{content.sections.length - 3} more sections
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Slides Preview Component
+const SlidesPreview = ({ content }: { content: any }) => {
+  if (!content || !content.slides) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        Loading slides...
+      </div>
+    );
+  }
+
+  const slideCount = content.slides.length;
+  const firstSlide = content.slides[0];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium">
+          {slideCount} Slide{slideCount !== 1 ? 's' : ''}
+        </div>
+        {content.theme && (
+          <div className="text-xs text-muted-foreground">
+            Theme: {content.theme}
+          </div>
+        )}
+      </div>
+      
+      {firstSlide && (
+        <div className="rounded-lg border p-4 bg-background/50 space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="size-1.5 rounded-full bg-primary" />
+            <div className="text-xs text-muted-foreground">Slide 1</div>
+          </div>
+          
+          {firstSlide.title && (
+            <div className="font-semibold text-sm line-clamp-2">
+              {firstSlide.title}
+            </div>
+          )}
+          
+          {firstSlide.content && (
+            <div className="text-xs text-muted-foreground line-clamp-3">
+              {Array.isArray(firstSlide.content) 
+                ? firstSlide.content.slice(0, 2).join(' • ')
+                : firstSlide.content}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {slideCount > 1 && (
+        <div className="flex items-center justify-center gap-1">
+          {Array.from({ length: Math.min(slideCount, 5) }).map((_, idx) => (
+            <div
+              key={idx}
+              className={cn(
+                "size-1.5 rounded-full",
+                idx === 0 ? "bg-primary" : "bg-muted-foreground/30"
+              )}
+            />
+          ))}
+          {slideCount > 5 && (
+            <div className="text-xs text-muted-foreground ml-1">
+              +{slideCount - 5}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
