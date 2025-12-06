@@ -7,6 +7,7 @@ import { quizDocumentHandler } from "@/artifacts/quiz/server";
 import { flashcardDocumentHandler } from "@/artifacts/flashcard/server";
 import { reportDocumentHandler } from "@/artifacts/report/server";
 import { slidesDocumentHandler } from "@/artifacts/slides/server";
+import { imageDocumentHandler } from "@/artifacts/image/server";
 import type { ArtifactKind } from "@/components/artifact";
 import { saveDocument } from "../db/queries";
 import type { Document } from "../db/schema";
@@ -101,6 +102,7 @@ export const documentHandlersByArtifactKind: DocumentHandler[] = [
   flashcardDocumentHandler,
   reportDocumentHandler,
   slidesDocumentHandler,
+  imageDocumentHandler,
 ];
 
 export const artifactKinds = [
@@ -111,4 +113,5 @@ export const artifactKinds = [
   "flashcard",
   "report",
   "slides",
+  "image",
 ] as const;

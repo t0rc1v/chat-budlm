@@ -604,7 +604,24 @@ Focus on comprehensive, detailed explanations:
 };
 
 // Image Generation Prompt Addition
-export const imageGenerationPrompt = `
+// Image Generation Prompt Addition
+export const getImageGenerationPrompt = (enabled: boolean) => {
+  if (!enabled) {
+    return `
+## IMAGE GENERATION: DISABLED
+
+You do NOT have image generation capabilities in this conversation. 
+
+If the user requests image generation:
+1. Politely inform them that image generation is currently disabled
+2. Explain that they can enable it in the tools settings
+3. Offer alternative ways to help (describe the image, provide guidance on creating it elsewhere, etc.)
+
+Example response: "I don't currently have image generation enabled for this conversation. You can enable it in the tools settings if you'd like me to create images. In the meantime, I can help you describe what you're looking for or provide guidance on creating the image using other tools."
+`;
+  }
+
+  return `
 ## IMAGE GENERATION CAPABILITY ENABLED
 
 You now have the ability to generate images using the Gemini 2.5 Flash Image model.
@@ -623,8 +640,9 @@ For image requests, use detailed, specific prompts that include:
 - Lighting and atmosphere
 - Any specific details or requirements
 
-Note: Currently, image generation is handled through the model selection. When this tool is active, the system may route image requests to the appropriate model.
+Use the generateImage tool to create images based on user descriptions.
 `;
+};
 
 // Helper function to build system prompt with tools
 export function buildSystemPromptWithTools({
@@ -648,10 +666,8 @@ export function buildSystemPromptWithTools({
     prompt += `\n\n${guidedLearningPrompt}`;
   }
 
-  // Add image generation if enabled
-  if (imageGeneration) {
-    prompt += `\n\n${imageGenerationPrompt}`;
-  }
+  // Add image generation status (whether enabled or disabled)
+  prompt += `\n\n${getImageGenerationPrompt(imageGeneration)}`;
 
   return prompt;
 }

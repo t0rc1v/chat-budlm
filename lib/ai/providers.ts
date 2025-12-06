@@ -1,4 +1,5 @@
 import { gateway } from "@ai-sdk/gateway";
+import { google } from "@ai-sdk/google";
 import { openai } from '@ai-sdk/openai';
 import {
   customProvider,
@@ -15,5 +16,6 @@ export const myProvider =  customProvider({
     }),
     "title-model": openai("gpt-4o-mini"),
     "artifact-model": openai("gpt-4.1-mini"),
+    "image-generation-model": google("gemini-2.5-flash-image"),
   },
 });

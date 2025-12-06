@@ -1,7 +1,9 @@
+// artifacts/image/client.tsx 
 import { toast } from "sonner";
 import { Artifact } from "@/components/create-artifact";
 import { CopyIcon, RedoIcon, UndoIcon } from "@/components/icons";
 import { ImageEditor } from "@/components/image-editor";
+import { DownloadIcon } from "lucide-react";
 
 export const imageArtifact = new Artifact({
   kind: "image",
@@ -18,57 +20,80 @@ export const imageArtifact = new Artifact({
   },
   content: ImageEditor,
   actions: [
-    {
-      icon: <UndoIcon size={18} />,
-      description: "View Previous version",
-      onClick: ({ handleVersionChange }) => {
-        handleVersionChange("prev");
-      },
-      isDisabled: ({ currentVersionIndex }) => {
-        if (currentVersionIndex === 0) {
-          return true;
-        }
+    // {
+    //   icon: <UndoIcon size={18} />,
+    //   description: "View Previous version",
+    //   onClick: ({ handleVersionChange }) => {
+    //     handleVersionChange("prev");
+    //   },
+    //   isDisabled: ({ currentVersionIndex }) => {
+    //     if (currentVersionIndex === 0) {
+    //       return true;
+    //     }
 
-        return false;
-      },
-    },
-    {
-      icon: <RedoIcon size={18} />,
-      description: "View Next version",
-      onClick: ({ handleVersionChange }) => {
-        handleVersionChange("next");
-      },
-      isDisabled: ({ isCurrentVersion }) => {
-        if (isCurrentVersion) {
-          return true;
-        }
+    //     return false;
+    //   },
+    // },
+    // {
+    //   icon: <RedoIcon size={18} />,
+    //   description: "View Next version",
+    //   onClick: ({ handleVersionChange }) => {
+    //     handleVersionChange("next");
+    //   },
+    //   isDisabled: ({ isCurrentVersion }) => {
+    //     if (isCurrentVersion) {
+    //       return true;
+    //     }
 
-        return false;
-      },
-    },
+    //     return false;
+    //   },
+    // },
+    // {
+    //   icon: <CopyIcon size={18} />,
+    //   description: "Copy image to clipboard",
+    //   onClick: ({ content }) => {
+    //     const img = new Image();
+    //     img.src = `data:image/png;base64,${content}`;
+
+    //     img.onload = () => {
+    //       const canvas = document.createElement("canvas");
+    //       canvas.width = img.width;
+    //       canvas.height = img.height;
+    //       const ctx = canvas.getContext("2d");
+    //       ctx?.drawImage(img, 0, 0);
+    //       canvas.toBlob((blob) => {
+    //         if (blob) {
+    //           navigator.clipboard.write([
+    //             new ClipboardItem({ "image/png": blob }),
+    //           ]);
+    //         }
+    //       }, "image/png");
+    //     };
+
+    //     toast.success("Copied image to clipboard!");
+    //   },
+    // },
     {
-      icon: <CopyIcon size={18} />,
-      description: "Copy image to clipboard",
+      icon: <DownloadIcon size={18} />,
+      description: "Download image",
       onClick: ({ content }) => {
-        const img = new Image();
-        img.src = `data:image/png;base64,${content}`;
+        // Handle both formats: with or without data URL prefix
+        const imageSrc = content.startsWith('data:image/')
+          ? content
+          : `data:image/png;base64,${content}`;
 
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext("2d");
-          ctx?.drawImage(img, 0, 0);
-          canvas.toBlob((blob) => {
-            if (blob) {
-              navigator.clipboard.write([
-                new ClipboardItem({ "image/png": blob }),
-              ]);
-            }
-          }, "image/png");
-        };
-
-        toast.success("Copied image to clipboard!");
+        // Create a temporary link element
+        const link = document.createElement("a");
+        link.href = imageSrc;
+        
+        link.download = `generated_image_${Date.now()}.png`;
+        
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast.success("Image downloaded!");
       },
     },
   ],

@@ -267,6 +267,60 @@ const PurePreviewMessage = ({
               );
             }
 
+            if (type === "tool-generateImage") {
+              const { toolCallId, state } = part;
+
+              return (
+                <div key={toolCallId}>
+                  {/* Show the tool call UI */}
+                  <Tool defaultOpen={true}>
+                    <ToolHeader state={state} type="tool-generateImage" />
+                    <ToolContent>
+                      {state === "input-available" && (
+                        <ToolInput input={part.input} />
+                      )}
+                      {state === "output-available" && part.output && "error" in part.output && (
+                        <ToolOutput
+                          errorText={String(part.output.error)}
+                          output={
+                            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-500 dark:bg-red-950/50">
+                              <div className="font-medium">Error generating image</div>
+                              <div className="mt-1">{String(part.output.error)}</div>
+                              {part.output.suggestion && (
+                                <div className="mt-2 text-sm">
+                                  💡 {String(part.output.suggestion)}
+                                </div>
+                              )}
+                            </div>
+                          }
+                        />
+                      )}
+                      {state === "output-available" && part.output && !("error" in part.output) && (
+                        <ToolOutput
+                          errorText={undefined}
+                          output={
+                            <div className="text-sm text-muted-foreground">
+                              Image generated successfully
+                            </div>
+                          }
+                        />
+                      )}
+                    </ToolContent>
+                  </Tool>
+                  
+                  {/* Show the document preview below the tool call */}
+                  {state === "output-available" && part.output && !("error" in part.output) && (
+                    <div className="mt-2">
+                      <DocumentPreview
+                        isReadonly={isReadonly}
+                        result={part.output}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return null;
           })}
 

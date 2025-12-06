@@ -50,6 +50,7 @@ import { queryDocuments } from "@/lib/services/chroma";
 import { buildRAGContext } from "@/lib/ai/prompts";
 import { getSelectedFileIds } from "@/lib/db/file-queries";
 import { WritingStyle } from "@/lib/stores/use-tools-store";
+import { generateImage } from "@/lib/ai/tools/generate-image";
 
 export const maxDuration = 60;
 
@@ -309,16 +310,24 @@ export async function POST(request: Request) {
                   "createDocument",
                   "updateDocument",
                   "requestSuggestions",
+                  ...(toolsSettings?.imageGeneration ? ["generateImage" as const] : []),
                 ],
           experimental_transform: smoothStream({ chunking: "word" }),
           tools: {
             getWeather,
-            createDocument: createDocument({ userId, dataStream }),
+            createDocument: createDocument({ 
+              userId,
+              dataStream,
+              imageGenerationEnabled: toolsSettings?.imageGeneration,
+            }),
             updateDocument: updateDocument({ userId, dataStream }),
             requestSuggestions: requestSuggestions({
               userId,
               dataStream,
             }),
+            ...(toolsSettings?.imageGeneration
+            ? { generateImage: generateImage({ userId, dataStream }) }
+            : {}),
           },
           experimental_telemetry: {
             isEnabled: process.env.NODE_ENV === "production",
